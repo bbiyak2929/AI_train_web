@@ -24,6 +24,7 @@ from app.api.experiments import router as experiments_router
 from app.api.runs import router as runs_router
 from app.api.servers import router as servers_router
 from app.api.artifacts import router as artifacts_router
+from app.api.files import router as files_router
 from app.api.dashboard import router as dashboard_router
 from app.api.logs import router as logs_router
 
@@ -60,6 +61,7 @@ app.include_router(experiments_router, prefix="/api")
 app.include_router(runs_router, prefix="/api")
 app.include_router(servers_router, prefix="/api")
 app.include_router(artifacts_router, prefix="/api")
+app.include_router(files_router, prefix="/api")
 app.include_router(dashboard_router, prefix="/api")
 app.include_router(logs_router)
 

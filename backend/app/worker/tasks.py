@@ -6,6 +6,8 @@ import json
 from datetime import datetime
 import paramiko
 import redis
+import boto3
+from botocore.exceptions import ClientError
 
 from celery import shared_task
 from sqlalchemy.orm import Session
@@ -13,13 +15,108 @@ from sqlalchemy.orm import Session
 from app.database import SessionLocal
 from app.models.run import Run, RunStatus
 from app.models.server import Server, ServerStatus
+from app.models.user import User
+from app.models.project import Project
 from app.config import settings
+from app.utils.email import send_run_completed_email
 
 logger = logging.getLogger(__name__)
 
 
 def _get_db() -> Session:
     return SessionLocal()
+
+
+def _notify_run_finished(db: Session, run: Run):
+    """Run 완료 시 이메일 알림을 발송합니다 (notify_email=True 인 사용자만)."""
+    try:
+        if not run.created_by:
+            return
+        user = db.query(User).filter(User.id == run.created_by).first()
+        if not user or not user.notify_email:
+            return
+
+        project = db.query(Project).filter(Project.id == run.project_id).first()
+        project_name = project.name if project else ""
+        run_name = run.name or str(run.id)[:8]
+
+        send_run_completed_email(
+            to_email=user.email,
+            username=user.full_name or user.username,
+            run_name=run_name,
+            status=run.status.value,
+            project_name=project_name,
+        )
+    except Exception as e:
+        logger.error(f"Failed to send notification for run {run.id}: {e}")
+
+
+def _get_s3():
+    return boto3.client(
+        "s3",
+        endpoint_url=f"http://{settings.MINIO_ENDPOINT}",
+        aws_access_key_id=settings.MINIO_ROOT_USER,
+        aws_secret_access_key=settings.MINIO_ROOT_PASSWORD,
+        region_name="us-east-1",
+    )
+
+
+def _download_project_files(ssh, project_id: str, run_id: str) -> str | None:
+    """
+    MinIO에서 프로젝트 파일 목록을 조회하고, 원격 서버에 다운로드합니다.
+    다운로드된 경로를 반환합니다 (파일이 없으면 None).
+    """
+    s3 = _get_s3()
+    prefix = f"projects/{project_id}/files/"
+
+    try:
+        response = s3.list_objects_v2(
+            Bucket=settings.MINIO_BUCKET_NAME,
+            Prefix=prefix,
+        )
+    except ClientError:
+        logger.warning(f"Failed to list files from MinIO for project {project_id}")
+        return None
+
+    objects = response.get("Contents", [])
+    if not objects:
+        return None
+
+    remote_dir = f"/tmp/aitrain/{run_id}/data"
+
+    # 리모트 디렉토리 생성
+    ssh.exec_command(f"mkdir -p {remote_dir}")
+
+    for obj in objects:
+        key = obj["Key"]
+        rel_path = key[len(prefix):]
+        if not rel_path:
+            continue
+
+        # MinIO에서 파일 데이터 가져오기
+        try:
+            file_obj = s3.get_object(Bucket=settings.MINIO_BUCKET_NAME, Key=key)
+            file_data = file_obj["Body"].read()
+        except ClientError:
+            logger.warning(f"Failed to download {key} from MinIO")
+            continue
+
+        # 원격 서버에 디렉터리 생성 후 파일 전송
+        remote_path = f"{remote_dir}/{rel_path}"
+        remote_subdir = "/".join(remote_path.split("/")[:-1])
+        ssh.exec_command(f"mkdir -p {remote_subdir}")
+
+        # SFTP로 파일 전송
+        sftp = ssh.open_sftp()
+        try:
+            with sftp.file(remote_path, "wb") as f:
+                f.write(file_data)
+        finally:
+            sftp.close()
+
+        logger.info(f"Uploaded {key} -> {remote_path}")
+
+    return remote_dir
 
 
 @shared_task(name="app.worker.tasks.schedule_run", bind=True, max_retries=3)
@@ -63,9 +160,6 @@ def schedule_run(self, run_id: str):
 
         container_name = f"aitrain_run_{run_id}"
 
-        cmd = f"docker run -d --name {container_name} {gpu_flag} {env_str} {run.docker_image} {run.command}"
-        logger.info(f"Executing: {cmd} on {server.name}")
-
         try:
             ssh = paramiko.SSHClient()
             ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
@@ -79,6 +173,13 @@ def schedule_run(self, run_id: str):
 
             # 먼저 동일한 이름의 컨테이너가 있으면 삭제
             ssh.exec_command(f"docker rm -f {container_name}")
+
+            # 프로젝트 파일 다운로드 (데이터셋/모델 등)
+            data_dir = _download_project_files(ssh, str(run.project_id), run_id)
+            volume_flag = f"-v {data_dir}:/workspace/data" if data_dir else ""
+
+            cmd = f"docker run -d --name {container_name} {gpu_flag} {volume_flag} {env_str} {run.docker_image} {run.command}"
+            logger.info(f"Executing: {cmd} on {server.name}")
 
             stdin, stdout, stderr = ssh.exec_command(cmd)
             exit_status = stdout.channel.recv_exit_status()
@@ -225,6 +326,7 @@ def monitor_run_status():
                     run.error_message = "Container deleted unexpectedly"
                     run.finished_at = datetime.utcnow()
                     db.commit()
+                    _notify_run_finished(db, run)
                     continue
 
                 state = json.loads(output)
@@ -237,6 +339,7 @@ def monitor_run_status():
                         run.status = RunStatus.FAILED
                         run.error_message = state.get("Error") or f"Exited with code {exit_code}"
                     run.finished_at = datetime.utcnow()
+                    _notify_run_finished(db, run)
                     db.commit()
 
             except Exception as e:
