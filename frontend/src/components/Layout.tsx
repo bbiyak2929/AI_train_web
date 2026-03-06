@@ -6,7 +6,7 @@ import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import {
     AppBar, Box, CssBaseline, Drawer, IconButton, List, ListItem,
     ListItemButton, ListItemIcon, ListItemText, Toolbar, Typography,
-    Avatar, Divider, Chip, alpha, Tooltip,
+    Avatar, Divider, Chip, alpha, Tooltip, useTheme, Snackbar, Alert,
 } from '@mui/material';
 import {
     Menu as MenuIcon,
@@ -17,7 +17,13 @@ import {
     Logout as LogoutIcon,
     Science as ScienceIcon,
     Person as PersonIcon,
+    DarkMode as DarkModeIcon,
+    LightMode as LightModeIcon,
+    NotificationsActive as NotifOnIcon,
+    NotificationsOff as NotifOffIcon,
 } from '@mui/icons-material';
+import { useThemeMode } from '../theme/ThemeContext';
+import { authAPI } from '../api/client';
 import type { User } from '../types';
 
 const DRAWER_WIDTH = 260;
@@ -25,6 +31,7 @@ const DRAWER_WIDTH = 260;
 interface LayoutProps {
     user: User | null;
     onLogout: () => void;
+    onUserUpdate?: (user: User) => void;
 }
 
 const navItems = [
@@ -33,10 +40,29 @@ const navItems = [
     { label: '서버 관리', icon: <ServerIcon />, path: '/servers' },
 ];
 
-export default function Layout({ user, onLogout }: LayoutProps) {
+export default function Layout({ user, onLogout, onUserUpdate }: LayoutProps) {
     const [mobileOpen, setMobileOpen] = useState(false);
+    const [notifSnack, setNotifSnack] = useState<{ open: boolean; message: string } | null>(null);
     const navigate = useNavigate();
     const location = useLocation();
+    const { mode, toggleTheme } = useThemeMode();
+    const isDark = mode === 'dark';
+
+    const handleToggleNotify = async () => {
+        if (!user) return;
+        try {
+            const res = await authAPI.updateNotifications(!user.notify_email);
+            if (onUserUpdate) onUserUpdate(res.data);
+            setNotifSnack({
+                open: true,
+                message: res.data.notify_email
+                    ? '이메일 알림이 켜졌습니다 📬'
+                    : '이메일 알림이 꺼졌습니다',
+            });
+        } catch {
+            setNotifSnack({ open: true, message: '알림 설정 변경 실패' });
+        }
+    };
 
     const drawer = (
         <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
@@ -51,17 +77,22 @@ export default function Layout({ user, onLogout }: LayoutProps) {
                 >
                     <ScienceIcon sx={{ color: '#fff', fontSize: 24 }} />
                 </Box>
-                <Box>
-                    <Typography variant="subtitle1" sx={{ fontWeight: 700, lineHeight: 1.2, color: '#F1F5F9' }}>
+                <Box sx={{ flex: 1 }}>
+                    <Typography variant="subtitle1" sx={{ fontWeight: 700, lineHeight: 1.2, color: isDark ? '#F1F5F9' : '#1E293B' }}>
                         AI Training
                     </Typography>
                     <Typography variant="caption" sx={{ color: '#64748B', fontSize: '0.65rem' }}>
                         Management Platform
                     </Typography>
                 </Box>
+                <Tooltip title={isDark ? '라이트 모드' : '다크 모드'}>
+                    <IconButton onClick={toggleTheme} size="small" sx={{ color: isDark ? '#FFB74D' : '#6C63FF' }}>
+                        {isDark ? <LightModeIcon fontSize="small" /> : <DarkModeIcon fontSize="small" />}
+                    </IconButton>
+                </Tooltip>
             </Box>
 
-            <Divider sx={{ borderColor: 'rgba(255,255,255,0.05)', mx: 2 }} />
+            <Divider sx={{ borderColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.08)', mx: 2 }} />
 
             {/* Navigation */}
             <List sx={{ flex: 1, px: 1.5, pt: 2 }}>
@@ -91,7 +122,9 @@ export default function Layout({ user, onLogout }: LayoutProps) {
                                     primaryTypographyProps={{
                                         fontSize: '0.875rem',
                                         fontWeight: active ? 600 : 400,
-                                        color: active ? '#F1F5F9' : '#94A3B8',
+                                        color: active
+                                            ? (isDark ? '#F1F5F9' : '#1E293B')
+                                            : (isDark ? '#94A3B8' : '#64748B'),
                                     }}
                                 />
                                 {active && (
@@ -108,7 +141,7 @@ export default function Layout({ user, onLogout }: LayoutProps) {
 
             {/* User Info */}
             <Box sx={{ p: 2 }}>
-                <Divider sx={{ borderColor: 'rgba(255,255,255,0.05)', mb: 2 }} />
+                <Divider sx={{ borderColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.08)', mb: 2 }} />
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
                     <Avatar sx={{
                         width: 36, height: 36,
@@ -118,13 +151,19 @@ export default function Layout({ user, onLogout }: LayoutProps) {
                         {user?.username?.[0]?.toUpperCase() || 'U'}
                     </Avatar>
                     <Box sx={{ flex: 1, minWidth: 0 }}>
-                        <Typography variant="body2" sx={{ fontWeight: 600, color: '#F1F5F9' }} noWrap>
+                        <Typography variant="body2" sx={{ fontWeight: 600, color: isDark ? '#F1F5F9' : '#1E293B' }} noWrap>
                             {user?.full_name || user?.username || 'User'}
                         </Typography>
                         <Typography variant="caption" sx={{ color: '#64748B' }} noWrap>
                             {user?.email || ''}
                         </Typography>
                     </Box>
+                    <Tooltip title={user?.notify_email ? '이메일 알림 끄기' : '이메일 알림 켜기'}>
+                        <IconButton size="small" onClick={handleToggleNotify}
+                            sx={{ color: user?.notify_email ? '#10B981' : '#64748B' }}>
+                            {user?.notify_email ? <NotifOnIcon fontSize="small" /> : <NotifOffIcon fontSize="small" />}
+                        </IconButton>
+                    </Tooltip>
                     <Tooltip title="로그아웃">
                         <IconButton size="small" onClick={onLogout} sx={{ color: '#64748B' }}>
                             <LogoutIcon fontSize="small" />
@@ -178,11 +217,25 @@ export default function Layout({ user, onLogout }: LayoutProps) {
                     pt: { xs: 10, md: 3.5 },
                     width: { md: `calc(100% - ${DRAWER_WIDTH}px)` },
                     minHeight: '100vh',
-                    background: 'linear-gradient(180deg, #0A0E1A 0%, #111827 100%)',
+                    background: isDark
+                        ? 'linear-gradient(180deg, #0A0E1A 0%, #111827 100%)'
+                        : 'linear-gradient(180deg, #F5F7FA 0%, #E8ECF1 100%)',
                 }}
             >
                 <Outlet />
             </Box>
+
+            {/* Notification Snackbar */}
+            {notifSnack && (
+                <Snackbar open={notifSnack.open} autoHideDuration={3000}
+                    onClose={() => setNotifSnack(null)}
+                    anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+                >
+                    <Alert severity="success" variant="filled" onClose={() => setNotifSnack(null)}>
+                        {notifSnack.message}
+                    </Alert>
+                </Snackbar>
+            )}
         </Box>
     );
 }

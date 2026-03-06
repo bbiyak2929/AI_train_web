@@ -33,6 +33,13 @@ class Settings(BaseSettings):
     API_CORS_ORIGINS: str = '["http://localhost","http://localhost:3000","http://localhost:5173"]'
     DEBUG: bool = True
 
+    # ── SMTP (Email) ──────────────────────────────
+    SMTP_HOST: str = "smtp.gmail.com"
+    SMTP_PORT: int = 587
+    SMTP_USER: str = ""
+    SMTP_PASSWORD: str = ""
+    SMTP_FROM: str = "AI Training Platform <noreply@aitrain.local>"
+
     # ── Runner ────────────────────────────────────
     RUNNER_TOKEN: str = "changeme_runner_registration_token"
 

@@ -33,6 +33,7 @@ export interface User {
     full_name?: string;
     is_active: boolean;
     is_superuser: boolean;
+    notify_email: boolean;
     created_at: string;
 }
 
@@ -142,6 +143,33 @@ export interface ServerDashboardCard {
     queued_runs: number;
 }
 
+// ── GPU Info ───────────────────────────────────
+export interface GpuInfo {
+    index: number;
+    name: string;
+    temperature: string;
+    gpu_util: string;
+    memory_used: string;
+    memory_total: string;
+    memory_free: string;
+    power_draw: string;
+    power_limit: string;
+    fan_speed: string;
+}
+
+export interface ServerGpuStatus {
+    server_id: string;
+    server_name: string;
+    driver_version: string;
+    cuda_version: string;
+    gpus: GpuInfo[];
+    cpu_usage: string;
+    memory_used: string;
+    memory_total: string;
+    uptime: string;
+    error?: string;
+}
+
 
 // ── Artifact ───────────────────────────────────
 export interface Artifact {
@@ -153,6 +181,15 @@ export interface Artifact {
     content_type?: string;
     storage_uri?: string;
     created_at: string;
+}
+
+// ── Project File ───────────────────────────────
+export interface ProjectFile {
+    key: string;
+    name: string;
+    relative_path: string;
+    size: number;
+    last_modified: string;
 }
 
 // ── Dashboard ──────────────────────────────────

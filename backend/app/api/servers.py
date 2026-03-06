@@ -8,9 +8,9 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.models.user import User
-from app.models.server import Server
+from app.models.server import Server, ServerStatus
 from app.models.run import Run, RunStatus
-from app.schemas.schemas import ServerCreate, ServerUpdate, ServerOut, ServerDashboardCard
+from app.schemas.schemas import ServerCreate, ServerUpdate, ServerOut, ServerDashboardCard, ServerGpuStatus, GpuInfo
 from app.utils.auth import get_current_user, get_current_superuser
 import paramiko
 
@@ -156,3 +156,139 @@ def delete_server(
         raise HTTPException(404, "Server not found")
     db.delete(server)
     db.commit()
+
+
+@router.get("/{server_id}/gpu-status", response_model=ServerGpuStatus)
+def get_gpu_status(
+    server_id: UUID,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    server = db.query(Server).filter(Server.id == server_id).first()
+    if not server:
+        raise HTTPException(404, "Server not found")
+
+    if not server.ssh_host or not server.ssh_user or not server.ssh_password:
+        raise HTTPException(400, "SSH 접속 정보가 없습니다")
+
+    try:
+        ssh = paramiko.SSHClient()
+        ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+        ssh.connect(
+            hostname=server.ssh_host,
+            port=server.ssh_port,
+            username=server.ssh_user,
+            password=server.ssh_password,
+            timeout=10
+        )
+
+        # nvidia-smi CSV query
+        gpu_cmd = (
+            "nvidia-smi --query-gpu=index,name,temperature.gpu,utilization.gpu,"
+            "memory.used,memory.total,memory.free,power.draw,power.limit,fan.speed "
+            "--format=csv,noheader,nounits"
+        )
+        _, stdout_gpu, stderr_gpu = ssh.exec_command(gpu_cmd, timeout=10)
+        gpu_output = stdout_gpu.read().decode().strip()
+        gpu_err = stderr_gpu.read().decode().strip()
+
+        gpus = []
+        if gpu_output and not gpu_err:
+            for line in gpu_output.split("\n"):
+                parts = [p.strip() for p in line.split(",")]
+                if len(parts) >= 10:
+                    gpus.append(GpuInfo(
+                        index=int(parts[0]),
+                        name=parts[1],
+                        temperature=f"{parts[2]}°C",
+                        gpu_util=f"{parts[3]}%",
+                        memory_used=f"{parts[4]} MiB",
+                        memory_total=f"{parts[5]} MiB",
+                        memory_free=f"{parts[6]} MiB",
+                        power_draw=f"{parts[7]} W",
+                        power_limit=f"{parts[8]} W",
+                        fan_speed=f"{parts[9]}%",
+                    ))
+
+        # driver & cuda version
+        _, stdout_ver, _ = ssh.exec_command(
+            "nvidia-smi --query-gpu=driver_version --format=csv,noheader | head -1",
+            timeout=10
+        )
+        driver_version = stdout_ver.read().decode().strip()
+
+        _, stdout_cuda, _ = ssh.exec_command(
+            "nvidia-smi | grep 'CUDA Version' | awk '{print $NF}'",
+            timeout=10
+        )
+        cuda_version = stdout_cuda.read().decode().strip()
+
+        # system info
+        _, stdout_cpu, _ = ssh.exec_command(
+            "top -bn1 | grep 'Cpu(s)' | awk '{print $2+$4}'",
+            timeout=10
+        )
+        cpu_usage = stdout_cpu.read().decode().strip()
+
+        _, stdout_mem, _ = ssh.exec_command(
+            "free -h | awk '/^Mem:/{print $3,$2}'",
+            timeout=10
+        )
+        mem_parts = stdout_mem.read().decode().strip().split()
+
+        _, stdout_up, _ = ssh.exec_command("uptime -p", timeout=10)
+        uptime = stdout_up.read().decode().strip()
+
+        ssh.close()
+
+        return ServerGpuStatus(
+            server_id=server.id,
+            server_name=server.name,
+            driver_version=driver_version,
+            cuda_version=cuda_version,
+            gpus=gpus,
+            cpu_usage=f"{cpu_usage}%" if cpu_usage else "N/A",
+            memory_used=mem_parts[0] if len(mem_parts) >= 1 else "N/A",
+            memory_total=mem_parts[1] if len(mem_parts) >= 2 else "N/A",
+            uptime=uptime or "N/A",
+        )
+
+    except Exception as e:
+        return ServerGpuStatus(
+            server_id=server.id,
+            server_name=server.name,
+            error=f"서버 접속 실패: {str(e)}",
+        )
+
+
+@router.post("/{server_id}/reboot")
+def reboot_server(
+    server_id: UUID,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_superuser),
+):
+    server = db.query(Server).filter(Server.id == server_id).first()
+    if not server:
+        raise HTTPException(404, "Server not found")
+
+    if not server.ssh_host or not server.ssh_user or not server.ssh_password:
+        raise HTTPException(400, "SSH 접속 정보가 없습니다")
+
+    try:
+        ssh = paramiko.SSHClient()
+        ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+        ssh.connect(
+            hostname=server.ssh_host,
+            port=server.ssh_port,
+            username=server.ssh_user,
+            password=server.ssh_password,
+            timeout=10
+        )
+        ssh.exec_command("sudo reboot", timeout=5)
+        ssh.close()
+    except Exception:
+        pass
+
+    server.status = ServerStatus.OFFLINE
+    db.commit()
+    return {"message": "재부팅 명령을 전송했습니다"}

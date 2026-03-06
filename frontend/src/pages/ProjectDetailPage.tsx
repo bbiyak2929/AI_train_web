@@ -1,20 +1,22 @@
 /**
- * ProjectDetailPage — 프로젝트 상세 (실험 템플릿 + Run 목록)
+ * ProjectDetailPage — 프로젝트 상세 (실험 템플릿 + Run 목록 + 파일 관리)
  */
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
     Box, Typography, Grid, Card, CardContent, Button, Tabs, Tab,
     Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
     Paper, Skeleton, Chip, Dialog, DialogTitle, DialogContent,
     DialogActions, TextField, alpha, IconButton, Tooltip,
+    LinearProgress, Snackbar, Alert,
 } from '@mui/material';
 import {
     Add, Science, PlayArrow, ArrowBack, Refresh,
+    CloudUpload, Delete, Download, InsertDriveFile, Folder,
 } from '@mui/icons-material';
-import { projectsAPI, experimentsAPI, runsAPI, serversAPI } from '../api/client';
+import { projectsAPI, experimentsAPI, runsAPI, serversAPI, filesAPI } from '../api/client';
 import RunStatusBadge from '../components/RunStatusBadge';
-import type { Project, Experiment, RunListItem, Server } from '../types';
+import type { Project, Experiment, RunListItem, Server, ProjectFile } from '../types';
 
 export default function ProjectDetailPage() {
     const { projectId } = useParams<{ projectId: string }>();
@@ -37,6 +39,69 @@ export default function ProjectDetailPage() {
     const [runParams, setRunParams] = useState('{}');
     const [selectedServer, setSelectedServer] = useState<string>('');
 
+    // File management state
+    const [files, setFiles] = useState<ProjectFile[]>([]);
+    const [uploading, setUploading] = useState(false);
+    const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'error' }>({ open: false, message: '', severity: 'success' });
+    const [dragOver, setDragOver] = useState(false);
+    const fileInputRef = useRef<HTMLInputElement>(null);
+
+    const fetchFiles = useCallback(async () => {
+        if (!projectId) return;
+        try {
+            const res = await filesAPI.list(projectId);
+            setFiles(res.data);
+        } catch (err) {
+            console.error(err);
+        }
+    }, [projectId]);
+
+    const handleFileUpload = async (fileList: FileList | File[]) => {
+        if (!projectId) return;
+        setUploading(true);
+        try {
+            const arr = Array.from(fileList);
+            if (arr.length === 1) {
+                await filesAPI.upload(projectId, arr[0]);
+            } else {
+                await filesAPI.uploadMultiple(projectId, arr);
+            }
+            setSnackbar({ open: true, message: `${arr.length}개 파일 업로드 완료`, severity: 'success' });
+            fetchFiles();
+        } catch (err) {
+            console.error(err);
+            setSnackbar({ open: true, message: '파일 업로드 실패', severity: 'error' });
+        }
+        setUploading(false);
+    };
+
+    const handleDeleteFile = async (key: string) => {
+        if (!projectId) return;
+        try {
+            await filesAPI.delete(projectId, key);
+            setSnackbar({ open: true, message: '파일 삭제 완료', severity: 'success' });
+            fetchFiles();
+        } catch (err) {
+            setSnackbar({ open: true, message: '파일 삭제 실패', severity: 'error' });
+        }
+    };
+
+    const handleDrop = (e: React.DragEvent) => {
+        e.preventDefault();
+        setDragOver(false);
+        if (e.dataTransfer.files.length > 0) {
+            handleFileUpload(e.dataTransfer.files);
+        }
+    };
+
+    const formatBytes = (bytes: number) => {
+        if (bytes === 0) return '0 B';
+        const k = 1024;
+        const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+    };
+
     const fetchData = async () => {
         if (!projectId) return;
         try {
@@ -57,6 +122,10 @@ export default function ProjectDetailPage() {
     };
 
     useEffect(() => { fetchData(); }, [projectId]);
+
+    useEffect(() => {
+        if (tab === 2) fetchFiles();
+    }, [tab, fetchFiles]);
 
     const handleCreateExperiment = async () => {
         if (!projectId) return;
@@ -133,6 +202,7 @@ export default function ProjectDetailPage() {
             <Tabs value={tab} onChange={(_, v) => setTab(v)} sx={{ mb: 3 }}>
                 <Tab label={`실험 템플릿 (${experiments.length})`} />
                 <Tab label={`실행 기록 (${runs.length})`} />
+                <Tab label={`파일 관리 (${files.length})`} />
             </Tabs>
 
             {/* Experiments Tab */}
@@ -244,6 +314,138 @@ export default function ProjectDetailPage() {
                 </TableContainer>
             )}
 
+            {/* Files Tab */}
+            {tab === 2 && (
+                <Box>
+                    {/* Hidden file input */}
+                    <input
+                        type="file"
+                        ref={fileInputRef}
+                        style={{ display: 'none' }}
+                        multiple
+                        onChange={(e) => {
+                            if (e.target.files && e.target.files.length > 0) {
+                                handleFileUpload(e.target.files);
+                                e.target.value = '';
+                            }
+                        }}
+                    />
+
+                    {/* Upload progress */}
+                    {uploading && <LinearProgress sx={{ mb: 2 }} />}
+
+                    {/* Drag & Drop Zone */}
+                    <Box
+                        onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+                        onDragLeave={() => setDragOver(false)}
+                        onDrop={handleDrop}
+                        sx={{
+                            border: `2px dashed ${dragOver ? '#00D9FF' : '#374151'}`,
+                            borderRadius: 2,
+                            p: 4,
+                            mb: 3,
+                            textAlign: 'center',
+                            backgroundColor: dragOver ? alpha('#00D9FF', 0.05) : 'transparent',
+                            transition: 'all 0.2s',
+                            cursor: 'pointer',
+                        }}
+                        onClick={() => fileInputRef.current?.click()}
+                    >
+                        <CloudUpload sx={{ fontSize: 48, color: dragOver ? '#00D9FF' : '#4B5563', mb: 1 }} />
+                        <Typography sx={{ color: '#94A3B8', mb: 0.5 }}>
+                            파일을 드래그하거나 클릭하여 업로드
+                        </Typography>
+                        <Typography variant="caption" sx={{ color: '#4B5563' }}>
+                            데이터셋, 모델 파일, 스크립트 등
+                        </Typography>
+                    </Box>
+
+                    {/* File list */}
+                    {files.length === 0 ? (
+                        <Card sx={{ textAlign: 'center' }}>
+                            <CardContent sx={{ py: 5 }}>
+                                <Folder sx={{ fontSize: 44, color: '#374151', mb: 1 }} />
+                                <Typography color="text.secondary">업로드된 파일이 없습니다</Typography>
+                                <Typography variant="caption" sx={{ color: '#4B5563' }}>
+                                    Run 실행 시 /workspace/data 경로에 자동으로 마운트됩니다
+                                </Typography>
+                            </CardContent>
+                        </Card>
+                    ) : (
+                        <TableContainer component={Paper} sx={{ backgroundColor: alpha('#111827', 0.8) }}>
+                            <Table>
+                                <TableHead>
+                                    <TableRow>
+                                        <TableCell>파일</TableCell>
+                                        <TableCell>크기</TableCell>
+                                        <TableCell>수정일</TableCell>
+                                        <TableCell align="right">작업</TableCell>
+                                    </TableRow>
+                                </TableHead>
+                                <TableBody>
+                                    {files.map((file) => (
+                                        <TableRow key={file.key} hover>
+                                            <TableCell>
+                                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                                    <InsertDriveFile sx={{ fontSize: 18, color: '#64748B' }} />
+                                                    <Box>
+                                                        <Typography variant="body2" sx={{ fontWeight: 500 }}>
+                                                            {file.name}
+                                                        </Typography>
+                                                        {file.relative_path !== file.name && (
+                                                            <Typography variant="caption" sx={{ color: '#4B5563' }}>
+                                                                {file.relative_path}
+                                                            </Typography>
+                                                        )}
+                                                    </Box>
+                                                </Box>
+                                            </TableCell>
+                                            <TableCell>
+                                                <Typography variant="body2" sx={{ color: '#94A3B8' }}>
+                                                    {formatBytes(file.size)}
+                                                </Typography>
+                                            </TableCell>
+                                            <TableCell>
+                                                <Typography variant="caption" sx={{ color: '#94A3B8' }}>
+                                                    {new Date(file.last_modified).toLocaleString('ko-KR', {
+                                                        month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit',
+                                                    })}
+                                                </Typography>
+                                            </TableCell>
+                                            <TableCell align="right">
+                                                <Tooltip title="다운로드">
+                                                    <IconButton
+                                                        size="small"
+                                                        component="a"
+                                                        href={projectId ? filesAPI.downloadUrl(projectId, file.key) : '#'}
+                                                        sx={{ color: '#64748B' }}
+                                                    >
+                                                        <Download fontSize="small" />
+                                                    </IconButton>
+                                                </Tooltip>
+                                                <Tooltip title="삭제">
+                                                    <IconButton
+                                                        size="small"
+                                                        onClick={() => handleDeleteFile(file.key)}
+                                                        sx={{ color: '#EF4444' }}
+                                                    >
+                                                        <Delete fontSize="small" />
+                                                    </IconButton>
+                                                </Tooltip>
+                                            </TableCell>
+                                        </TableRow>
+                                    ))}
+                                </TableBody>
+                            </Table>
+                        </TableContainer>
+                    )}
+
+                    <Typography variant="caption" sx={{ color: '#4B5563', display: 'block', mt: 2 }}>
+                        💡 업로드한 파일은 Run 실행 시 컨테이너의 <code>/workspace/data</code> 경로에 자동 마운트됩니다
+                    </Typography>
+                </Box>
+            )}
+
             {/* Experiment Create Dialog */}
             <Dialog open={expDialog} onClose={() => setExpDialog(false)} maxWidth="sm" fullWidth>
                 <DialogTitle sx={{ fontWeight: 700 }}>새 실험 템플릿</DialogTitle>
@@ -287,6 +489,15 @@ export default function ProjectDetailPage() {
                     <Button variant="contained" startIcon={<PlayArrow />} onClick={handleCreateRun} disabled={!selectedExp}>실행</Button>
                 </DialogActions>
             </Dialog>
+
+            {/* Snackbar */}
+            <Snackbar open={snackbar.open} autoHideDuration={3000} onClose={() => setSnackbar({ ...snackbar, open: false })}
+                anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+            >
+                <Alert severity={snackbar.severity} onClose={() => setSnackbar({ ...snackbar, open: false })} variant="filled">
+                    {snackbar.message}
+                </Alert>
+            </Snackbar>
         </Box>
     );
 }
