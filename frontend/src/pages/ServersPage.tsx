@@ -2,13 +2,14 @@
  * ServersPage — 서버 관리 (관리자)
  */
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
     Box, Typography, Grid, Card, CardContent, Button,
     Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
     Paper, Chip, Skeleton, Dialog, DialogTitle, DialogContent,
-    DialogActions, TextField, alpha,
+    DialogActions, TextField, alpha, Snackbar, Alert, IconButton,
 } from '@mui/material';
-import { Add, Dns, Refresh } from '@mui/icons-material';
+import { Add, Dns, Refresh, Delete as DeleteIcon } from '@mui/icons-material';
 import { serversAPI } from '../api/client';
 import ServerCard from '../components/ServerCard';
 import type { ServerDashboardCard } from '../types';
@@ -21,9 +22,12 @@ const statusColors: Record<string, string> = {
 };
 
 export default function ServersPage() {
+    const navigate = useNavigate();
     const [servers, setServers] = useState<ServerDashboardCard[]>([]);
     const [loading, setLoading] = useState(true);
     const [dialog, setDialog] = useState(false);
+    const [deleteDialog, setDeleteDialog] = useState<{ open: boolean; server: ServerDashboardCard | null }>({ open: false, server: null });
+    const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'error' }>({ open: false, message: '', severity: 'success' });
     const [form, setForm] = useState({
         name: '', hostname: '', ip_address: '',
         gpu_count: '0', gpu_model: '', max_concurrent_runs: '1', description: '',
@@ -57,11 +61,36 @@ export default function ServersPage() {
             });
             setDialog(false);
             setForm({ name: '', hostname: '', ip_address: '', gpu_count: '0', gpu_model: '', max_concurrent_runs: '1', description: '', ssh_host: '', ssh_port: '22', ssh_user: '', ssh_password: '' });
+            setSnackbar({ open: true, message: '서버가 성공적으로 추가되었습니다.', severity: 'success' });
             fetchData();
         } catch (err: any) {
             console.error(err);
-            const msg = err.response?.data?.detail || "서버 추가에 실패했습니다.";
-            alert(`오류: ${msg}`);
+            const detail = err.response?.data?.detail || '';
+            let msg = '서버 추가에 실패했습니다.';
+            if (detail.includes('SSH Connection failed')) {
+                const reason = detail.replace('SSH Connection failed: ', '');
+                msg = `SSH 연결 실패: ${reason}\n\nSSH 호스트, 포트, 사용자명, 비밀번호를 확인 후 다시 시도해주세요.`;
+            } else if (detail.includes('already exists')) {
+                msg = '이미 동일한 이름의 서버가 존재합니다. 다른 이름을 사용해주세요.';
+            } else if (detail) {
+                msg = `오류: ${detail}`;
+            }
+            setSnackbar({ open: true, message: msg, severity: 'error' });
+        }
+    };
+
+    const handleDelete = async () => {
+        if (!deleteDialog.server) return;
+        try {
+            await serversAPI.delete(deleteDialog.server.id);
+            setDeleteDialog({ open: false, server: null });
+            setSnackbar({ open: true, message: '서버가 삭제되었습니다.', severity: 'success' });
+            fetchData();
+        } catch (err: any) {
+            console.error(err);
+            const msg = err.response?.data?.detail || '서버 삭제에 실패했습니다.';
+            setSnackbar({ open: true, message: msg, severity: 'error' });
+            setDeleteDialog({ open: false, server: null });
         }
     };
 
@@ -105,7 +134,28 @@ export default function ServersPage() {
                 ) : (
                     servers.map((s) => (
                         <Grid item xs={12} sm={6} md={4} key={s.id}>
-                            <ServerCard server={s} />
+                            <Box sx={{ position: 'relative' }}>
+                                <ServerCard server={s} onClick={() => navigate(`/servers/${s.id}`)} />
+                                <IconButton
+                                    size="small"
+                                    onClick={() => setDeleteDialog({ open: true, server: s })}
+                                    sx={{
+                                        position: 'absolute',
+                                        bottom: 12,
+                                        right: 12,
+                                        color: '#FF5252',
+                                        backgroundColor: (theme) => alpha(theme.palette.background.paper, 0.85),
+                                        backdropFilter: 'blur(4px)',
+                                        border: '1px solid',
+                                        borderColor: alpha('#FF5252', 0.2),
+                                        '&:hover': {
+                                            backgroundColor: alpha('#FF5252', 0.15),
+                                        },
+                                    }}
+                                >
+                                    <DeleteIcon fontSize="small" />
+                                </IconButton>
+                            </Box>
                         </Grid>
                     ))
                 )}
@@ -162,6 +212,40 @@ export default function ServersPage() {
                     <Button variant="contained" onClick={handleCreate} disabled={!form.name || !form.hostname}>추가</Button>
                 </DialogActions>
             </Dialog>
+
+            {/* Delete Confirmation Dialog */}
+            <Dialog open={deleteDialog.open} onClose={() => setDeleteDialog({ open: false, server: null })} maxWidth="xs" fullWidth>
+                <DialogTitle sx={{ fontWeight: 700 }}>서버 삭제</DialogTitle>
+                <DialogContent>
+                    <Typography>
+                        <strong>{deleteDialog.server?.name}</strong> 서버를 정말 삭제하시겠습니까?
+                    </Typography>
+                    <Typography variant="body2" sx={{ color: 'text.secondary', mt: 1 }}>
+                        이 작업은 되돌릴 수 없습니다.
+                    </Typography>
+                </DialogContent>
+                <DialogActions sx={{ px: 3, pb: 2 }}>
+                    <Button onClick={() => setDeleteDialog({ open: false, server: null })} color="inherit">취소</Button>
+                    <Button variant="contained" color="error" onClick={handleDelete}>삭제</Button>
+                </DialogActions>
+            </Dialog>
+
+            {/* Snackbar for feedback */}
+            <Snackbar
+                open={snackbar.open}
+                autoHideDuration={6000}
+                onClose={() => setSnackbar({ ...snackbar, open: false })}
+                anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+            >
+                <Alert
+                    onClose={() => setSnackbar({ ...snackbar, open: false })}
+                    severity={snackbar.severity}
+                    variant="filled"
+                    sx={{ width: '100%', whiteSpace: 'pre-line' }}
+                >
+                    {snackbar.message}
+                </Alert>
+            </Snackbar>
         </Box>
     );
 }

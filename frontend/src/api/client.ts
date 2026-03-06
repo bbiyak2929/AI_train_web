@@ -40,6 +40,8 @@ export const authAPI = {
     register: (data: { username: string; email: string; password: string; full_name?: string }) =>
         api.post('/auth/register', data),
     me: () => api.get('/auth/me'),
+    updateNotifications: (notify_email: boolean) =>
+        api.patch('/auth/me/notifications', { notify_email }),
 };
 
 // ── Projects API ─────────────────────────────
@@ -93,6 +95,8 @@ export const serversAPI = {
     create: (data: any) => api.post('/servers/', data),
     update: (id: string, data: any) => api.patch(`/servers/${id}`, data),
     delete: (id: string) => api.delete(`/servers/${id}`),
+    gpuStatus: (id: string) => api.get(`/servers/${id}/gpu-status`),
+    reboot: (id: string) => api.post(`/servers/${id}/reboot`),
 };
 
 
@@ -100,6 +104,32 @@ export const serversAPI = {
 export const artifactsAPI = {
     list: (runId: string) => api.get(`/runs/${runId}/artifacts/`),
     get: (runId: string, id: string) => api.get(`/runs/${runId}/artifacts/${id}`),
+};
+
+// ── Files API (프로젝트 파일 관리) ─────────────
+export const filesAPI = {
+    list: (projectId: string, path = '') =>
+        api.get(`/projects/${projectId}/files/`, { params: { path } }),
+    upload: (projectId: string, file: File, path = '') => {
+        const formData = new FormData();
+        formData.append('file', file);
+        return api.post(`/projects/${projectId}/files/upload`, formData, {
+            params: { path },
+            headers: { 'Content-Type': 'multipart/form-data' },
+        });
+    },
+    uploadMultiple: (projectId: string, files: File[], path = '') => {
+        const formData = new FormData();
+        files.forEach((f) => formData.append('files', f));
+        return api.post(`/projects/${projectId}/files/upload-multiple`, formData, {
+            params: { path },
+            headers: { 'Content-Type': 'multipart/form-data' },
+        });
+    },
+    delete: (projectId: string, key: string) =>
+        api.delete(`/projects/${projectId}/files/`, { params: { key } }),
+    downloadUrl: (projectId: string, key: string) =>
+        `/api/projects/${projectId}/files/download?key=${encodeURIComponent(key)}`,
 };
 
 // ── Dashboard API ────────────────────────────

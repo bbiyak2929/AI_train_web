@@ -57,10 +57,15 @@ class UserOut(BaseModel):
     full_name: Optional[str] = None
     is_active: bool
     is_superuser: bool
+    notify_email: bool = False
     created_at: datetime
 
     class Config:
         from_attributes = True
+
+
+class NotificationUpdate(BaseModel):
+    notify_email: bool
 
 
 # ── Project ───────────────────────────────────────────────
@@ -304,6 +309,33 @@ class ServerDashboardCard(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+# ── GPU Info ──────────────────────────────────────────────
+class GpuInfo(BaseModel):
+    index: int
+    name: str
+    temperature: str
+    gpu_util: str
+    memory_used: str
+    memory_total: str
+    memory_free: str
+    power_draw: str
+    power_limit: str
+    fan_speed: str
+
+
+class ServerGpuStatus(BaseModel):
+    server_id: UUID
+    server_name: str
+    driver_version: str = ""
+    cuda_version: str = ""
+    gpus: List[GpuInfo] = []
+    cpu_usage: str = ""
+    memory_used: str = ""
+    memory_total: str = ""
+    uptime: str = ""
+    error: Optional[str] = None
 
 
 # ── Pagination ────────────────────────────────────────────
