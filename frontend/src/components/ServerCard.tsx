@@ -2,7 +2,7 @@
  * ServerCard — 서버 상태 카드 (대시보드용)
  */
 import React from 'react';
-import { Card, CardContent, Box, Typography, LinearProgress, Chip, alpha } from '@mui/material';
+import { Card, CardContent, Box, Typography, LinearProgress, Chip, alpha, useTheme } from '@mui/material';
 import { Dns as ServerIcon, Memory as GpuIcon } from '@mui/icons-material';
 import type { ServerDashboardCard as ServerCardType } from '../types';
 
@@ -18,6 +18,8 @@ const statusColors: Record<string, string> = {
 };
 
 export default function ServerCard({ server, onClick }: Props) {
+    const theme = useTheme();
+    const isDark = theme.palette.mode === 'dark';
     const statusColor = statusColors[server.status] || '#64748B';
     const gpuUsage = server.gpu_count > 0
         ? Math.round((server.active_runs / server.gpu_count) * 100)
@@ -61,7 +63,7 @@ export default function ServerCard({ server, onClick }: Props) {
                         <ServerIcon sx={{ color: statusColor, fontSize: 22 }} />
                     </Box>
                     <Box>
-                        <Typography variant="subtitle2" sx={{ fontWeight: 700, color: '#F1F5F9' }}>
+                        <Typography variant="subtitle2" sx={{ fontWeight: 700, color: isDark ? '#F1F5F9' : '#1E293B' }}>
                             {server.name}
                         </Typography>
                         <Typography variant="caption" sx={{ color: '#64748B' }}>

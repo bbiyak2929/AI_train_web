@@ -3,8 +3,8 @@
  */
 import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-import { ThemeProvider, CssBaseline, CircularProgress, Box } from '@mui/material';
-import theme from './theme/theme';
+import { CircularProgress, Box } from '@mui/material';
+import { ThemeProvider } from './theme/ThemeContext';
 import { useAuth } from './hooks/useAuth';
 
 // Components
@@ -17,15 +17,15 @@ import ProjectsPage from './pages/ProjectsPage';
 import ProjectDetailPage from './pages/ProjectDetailPage';
 import RunDetailPage from './pages/RunDetailPage';
 import ServersPage from './pages/ServersPage';
+import ServerDetailPage from './pages/ServerDetailPage';
 
 function AppContent() {
-    const { user, loading, login, logout } = useAuth();
+    const { user, setUser, loading, login, logout } = useAuth();
 
     if (loading) {
         return (
             <Box sx={{
                 minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                background: '#0A0E1A',
             }}>
                 <CircularProgress sx={{ color: '#6C63FF' }} />
             </Box>
@@ -38,12 +38,13 @@ function AppContent() {
 
     return (
         <Routes>
-            <Route element={<Layout user={user} onLogout={logout} />}>
+            <Route element={<Layout user={user} onLogout={logout} onUserUpdate={setUser} />}>
                 <Route path="/" element={<DashboardPage />} />
                 <Route path="/projects" element={<ProjectsPage />} />
                 <Route path="/projects/:projectId" element={<ProjectDetailPage />} />
                 <Route path="/projects/:projectId/runs/:runId" element={<RunDetailPage />} />
                 <Route path="/servers" element={<ServersPage />} />
+                <Route path="/servers/:serverId" element={<ServerDetailPage />} />
                 <Route path="*" element={<Navigate to="/" replace />} />
             </Route>
         </Routes>
@@ -52,8 +53,7 @@ function AppContent() {
 
 export default function App() {
     return (
-        <ThemeProvider theme={theme}>
-            <CssBaseline />
+        <ThemeProvider>
             <BrowserRouter>
                 <AppContent />
             </BrowserRouter>
