@@ -1,0 +1,37 @@
+version: "3.9"
+
+# 학습 서버에 배포하는 Runner Agent
+# 사용법: docker-compose -f docker-compose.runner.yml up -d
+
+services:
+  runner:
+    build:
+      context: ./runner
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    environment:
+      RUNNER_TOKEN: ${RUNNER_TOKEN}
+      RUNNER_API_URL: ${RUNNER_API_URL}
+      RUNNER_ID: ${RUNNER_ID}
+      MINIO_ENDPOINT: ${MINIO_ENDPOINT}
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+      MINIO_BUCKET_NAME: ${MINIO_BUCKET_NAME}
+      GPU_ENABLED: ${GPU_ENABLED}
+      ALLOWED_IMAGES: ${ALLOWED_IMAGES}
+    ports:
+      - "8100:8100"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - runner_data:/data
+    # GPU 사용 시 아래 주석 해제
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: all
+    #           capabilities: [gpu]
+
+volumes:
+  runner_data:
