@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models.user import User
 from app.schemas.schemas import (
-    LoginRequest, RegisterRequest, TokenResponse, UserOut,
+    LoginRequest, RegisterRequest, TokenResponse, UserOut, NotificationUpdate,
 )
 from app.utils.auth import (
     hash_password, verify_password, create_access_token, get_current_user,
@@ -50,4 +50,16 @@ def login(body: LoginRequest, db: Session = Depends(get_db)):
 
 @router.get("/me", response_model=UserOut)
 def me(current_user: User = Depends(get_current_user)):
+    return current_user
+
+
+@router.patch("/me/notifications", response_model=UserOut)
+def update_notifications(
+    body: NotificationUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    current_user.notify_email = body.notify_email
+    db.commit()
+    db.refresh(current_user)
     return current_user
