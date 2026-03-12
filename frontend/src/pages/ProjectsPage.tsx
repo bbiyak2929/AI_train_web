@@ -53,8 +53,8 @@ export default function ProjectsPage() {
         <Box>
             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 4 }}>
                 <Box>
-                    <Typography variant="h4" sx={{ fontWeight: 700, color: '#F1F5F9' }}>프로젝트</Typography>
-                    <Typography variant="body2" sx={{ color: '#64748B' }}>학습 프로젝트를 관리합니다</Typography>
+                    <Typography variant="h4" sx={{ fontWeight: 700, color: 'text.primary' }}>프로젝트</Typography>
+                    <Typography variant="body2" sx={{ color: 'text.secondary' }}>학습 프로젝트를 관리합니다</Typography>
                 </Box>
                 <Button
                     variant="contained" startIcon={<Add />}
@@ -76,9 +76,9 @@ export default function ProjectsPage() {
                     <Grid item xs={12}>
                         <Card sx={{ textAlign: 'center' }}>
                             <CardContent sx={{ py: 6 }}>
-                                <Folder sx={{ fontSize: 48, color: '#374151', mb: 2 }} />
-                                <Typography variant="h6" sx={{ color: '#64748B', mb: 1 }}>프로젝트가 없습니다</Typography>
-                                <Typography variant="body2" sx={{ color: '#4B5563', mb: 3 }}>
+                                <Folder sx={{ fontSize: 48, color: 'action.disabled', mb: 2 }} />
+                                <Typography variant="h6" sx={{ color: 'text.secondary', mb: 1 }}>프로젝트가 없습니다</Typography>
+                                <Typography variant="body2" sx={{ color: 'text.disabled', mb: 3 }}>
                                     새 프로젝트를 만들어 학습과 실험을 시작하세요
                                 </Typography>
                                 <Button variant="contained" startIcon={<Add />} onClick={() => setDialogOpen(true)}>
@@ -108,13 +108,13 @@ export default function ProjectsPage() {
                                             }}>
                                                 <Folder sx={{ color: '#6C63FF', fontSize: 22 }} />
                                             </Box>
-                                            <Typography variant="subtitle1" sx={{ fontWeight: 700, color: '#F1F5F9' }}>
+                                            <Typography variant="subtitle1" sx={{ fontWeight: 700, color: 'text.primary' }}>
                                                 {p.name}
                                             </Typography>
                                         </Box>
 
                                         {p.description && (
-                                            <Typography variant="body2" sx={{ color: '#94A3B8', mb: 2, lineHeight: 1.6 }}
+                                            <Typography variant="body2" sx={{ color: 'text.secondary', mb: 2, lineHeight: 1.6 }}
                                                 noWrap
                                             >
                                                 {p.description}
@@ -126,11 +126,11 @@ export default function ProjectsPage() {
                                                 icon={<People sx={{ fontSize: 14 }} />}
                                                 label={`${p.member_count}명`}
                                                 size="small"
-                                                sx={{ fontSize: '0.7rem', backgroundColor: alpha('#6C63FF', 0.1), color: '#8B83FF' }}
+                                                sx={{ fontSize: '0.7rem', backgroundColor: alpha('#6C63FF', 0.1), color: 'primary.light' }}
                                             />
                                             <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                                                <CalendarToday sx={{ fontSize: 12, color: '#4B5563' }} />
-                                                <Typography variant="caption" sx={{ color: '#4B5563' }}>
+                                                <CalendarToday sx={{ fontSize: 12, color: 'text.disabled' }} />
+                                                <Typography variant="caption" sx={{ color: 'text.disabled' }}>
                                                     {formatDate(p.created_at)}
                                                 </Typography>
                                             </Box>

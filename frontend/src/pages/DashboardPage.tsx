@@ -62,10 +62,10 @@ export default function DashboardPage() {
     return (
         <Box>
             <Box sx={{ mb: 4 }}>
-                <Typography variant="h4" sx={{ fontWeight: 700, color: '#F1F5F9', mb: 0.5 }}>
+                <Typography variant="h4" sx={{ fontWeight: 700, color: 'text.primary', mb: 0.5 }}>
                     대시보드
                 </Typography>
-                <Typography variant="body2" sx={{ color: '#64748B' }}>
+                <Typography variant="body2" sx={{ color: 'text.secondary' }}>
                     AI 학습 서버 및 실행 상태 개요
                 </Typography>
             </Box>
@@ -91,13 +91,13 @@ export default function DashboardPage() {
                                 <CardContent sx={{ p: 2.5 }}>
                                     <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                                         <Box>
-                                            <Typography variant="caption" sx={{ color: '#64748B', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+                                            <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
                                                 {s.label}
                                             </Typography>
-                                            <Typography variant="h3" sx={{ fontWeight: 700, color: '#F1F5F9', lineHeight: 1.2, mt: 0.5 }}>
+                                            <Typography variant="h3" sx={{ fontWeight: 700, color: 'text.primary', lineHeight: 1.2, mt: 0.5 }}>
                                                 {s.value}
                                             </Typography>
-                                            <Typography variant="caption" sx={{ color: '#64748B' }}>
+                                            <Typography variant="caption" sx={{ color: 'text.secondary' }}>
                                                 {s.sub}
                                             </Typography>
                                         </Box>
@@ -117,7 +117,7 @@ export default function DashboardPage() {
             </Grid>
 
             {/* Server Cards */}
-            <Typography variant="h6" sx={{ fontWeight: 700, color: '#F1F5F9', mb: 2 }}>
+            <Typography variant="h6" sx={{ fontWeight: 700, color: 'text.primary', mb: 2 }}>
                 🖥️ 서버 상태
             </Typography>
             <Grid container spacing={2.5} sx={{ mb: 4 }}>
@@ -145,10 +145,10 @@ export default function DashboardPage() {
             {/* Recent Runs Table */}
             <Grid container spacing={2.5}>
                 <Grid item xs={12} md={7}>
-                    <Typography variant="h6" sx={{ fontWeight: 700, color: '#F1F5F9', mb: 2 }}>
+                    <Typography variant="h6" sx={{ fontWeight: 700, color: 'text.primary', mb: 2 }}>
                         🚀 최근 실행
                     </Typography>
-                    <TableContainer component={Paper} sx={{ backgroundColor: alpha('#111827', 0.8), backdropFilter: 'blur(20px)' }}>
+                    <TableContainer component={Paper} sx={{ backgroundColor: (theme) => alpha(theme.palette.background.paper, 0.8), backdropFilter: 'blur(20px)' }}>
                         <Table size="small">
                             <TableHead>
                                 <TableRow>
@@ -186,7 +186,7 @@ export default function DashboardPage() {
                                                 <RunStatusBadge status={run.status} />
                                             </TableCell>
                                             <TableCell>
-                                                <Typography variant="caption" sx={{ color: '#94A3B8' }}>
+                                                <Typography variant="caption" sx={{ color: 'text.secondary' }}>
                                                     {formatTime(run.created_at)}
                                                 </Typography>
                                             </TableCell>
@@ -200,7 +200,7 @@ export default function DashboardPage() {
 
                 {/* Failed Runs */}
                 <Grid item xs={12} md={5}>
-                    <Typography variant="h6" sx={{ fontWeight: 700, color: '#F1F5F9', mb: 2 }}>
+                    <Typography variant="h6" sx={{ fontWeight: 700, color: 'text.primary', mb: 2 }}>
                         ⚠️ 실패한 실행
                     </Typography>
                     <Card>
@@ -230,7 +230,7 @@ export default function DashboardPage() {
                                             <Typography variant="body2" sx={{ fontWeight: 500 }}>
                                                 {run.name || run.id.slice(0, 8)}
                                             </Typography>
-                                            <Typography variant="caption" sx={{ color: '#64748B' }}>
+                                            <Typography variant="caption" sx={{ color: 'text.secondary' }}>
                                                 {formatTime(run.created_at)}
                                             </Typography>
                                         </Box>

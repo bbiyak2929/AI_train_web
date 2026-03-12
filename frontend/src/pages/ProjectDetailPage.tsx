@@ -13,10 +13,115 @@ import {
 import {
     Add, Science, PlayArrow, ArrowBack, Refresh,
     CloudUpload, Delete, Download, InsertDriveFile, Folder,
+    AutoAwesome, Settings,
 } from '@mui/icons-material';
 import { projectsAPI, experimentsAPI, runsAPI, serversAPI, filesAPI } from '../api/client';
 import RunStatusBadge from '../components/RunStatusBadge';
 import type { Project, Experiment, RunListItem, Server, ProjectFile } from '../types';
+
+/* ── Experiment Presets ────────────────────────── */
+interface PresetModel { value: string; label: string }
+interface ExperimentPreset {
+    id: string;
+    name: string;
+    category: string;
+    docker_image: string;
+    entrypoint: string;
+    param_style: 'argparse' | 'equals';
+    default_params: Record<string, any>;
+    models: PresetModel[];
+    description: string;
+    icon: string;
+}
+
+const EXPERIMENT_PRESETS: ExperimentPreset[] = [
+    {
+        id: 'yolo26-detect', name: 'YOLO26 객체감지', category: 'Object Detection',
+        docker_image: 'ultralytics/ultralytics:latest', entrypoint: 'yolo detect train',
+        param_style: 'equals',
+        default_params: { epochs: 100, imgsz: 640, batch: 16, data: '/workspace/data/data.yaml' },
+        models: [
+            { value: 'yolo26n.pt', label: 'YOLO26n (Nano)' },
+            { value: 'yolo26s.pt', label: 'YOLO26s (Small)' },
+            { value: 'yolo26m.pt', label: 'YOLO26m (Medium)' },
+            { value: 'yolo26l.pt', label: 'YOLO26l (Large)' },
+            { value: 'yolo26x.pt', label: 'YOLO26x (XLarge)' },
+        ],
+        description: 'YOLO26 최신 모델 객체감지 학습', icon: '🎯',
+    },
+    {
+        id: 'yolo11-detect', name: 'YOLO11 객체감지', category: 'Object Detection',
+        docker_image: 'ultralytics/ultralytics:latest', entrypoint: 'yolo detect train',
+        param_style: 'equals',
+        default_params: { epochs: 100, imgsz: 640, batch: 16, data: '/workspace/data/data.yaml' },
+        models: [
+            { value: 'yolo11n.pt', label: 'YOLO11n (Nano)' },
+            { value: 'yolo11s.pt', label: 'YOLO11s (Small)' },
+            { value: 'yolo11m.pt', label: 'YOLO11m (Medium)' },
+            { value: 'yolo11l.pt', label: 'YOLO11l (Large)' },
+            { value: 'yolo11x.pt', label: 'YOLO11x (XLarge)' },
+        ],
+        description: 'YOLO11 객체감지 학습', icon: '🔍',
+    },
+    {
+        id: 'yolo-segment', name: 'YOLO 세그멘테이션', category: 'Segmentation',
+        docker_image: 'ultralytics/ultralytics:latest', entrypoint: 'yolo segment train',
+        param_style: 'equals',
+        default_params: { epochs: 100, imgsz: 640, batch: 16, data: '/workspace/data/data.yaml' },
+        models: [
+            { value: 'yolo11n-seg.pt', label: 'YOLO11n-seg' },
+            { value: 'yolo11s-seg.pt', label: 'YOLO11s-seg' },
+            { value: 'yolo11m-seg.pt', label: 'YOLO11m-seg' },
+        ],
+        description: 'YOLO 인스턴스 세그멘테이션', icon: '🖼️',
+    },
+    {
+        id: 'yolo-classify', name: 'YOLO 분류', category: 'Classification',
+        docker_image: 'ultralytics/ultralytics:latest', entrypoint: 'yolo classify train',
+        param_style: 'equals',
+        default_params: { epochs: 100, imgsz: 224, batch: 64, data: '/workspace/data' },
+        models: [
+            { value: 'yolo11n-cls.pt', label: 'YOLO11n-cls' },
+            { value: 'yolo11s-cls.pt', label: 'YOLO11s-cls' },
+            { value: 'yolo11m-cls.pt', label: 'YOLO11m-cls' },
+        ],
+        description: 'YOLO 이미지 분류', icon: '🏷️',
+    },
+    {
+        id: 'yolo-pose', name: 'YOLO 포즈추정', category: 'Pose Estimation',
+        docker_image: 'ultralytics/ultralytics:latest', entrypoint: 'yolo pose train',
+        param_style: 'equals',
+        default_params: { epochs: 100, imgsz: 640, batch: 16, data: '/workspace/data/data.yaml' },
+        models: [
+            { value: 'yolo11n-pose.pt', label: 'YOLO11n-pose' },
+            { value: 'yolo11s-pose.pt', label: 'YOLO11s-pose' },
+            { value: 'yolo11m-pose.pt', label: 'YOLO11m-pose' },
+        ],
+        description: 'YOLO 포즈(키포인트) 추정', icon: '🤸',
+    },
+    {
+        id: 'pytorch-custom', name: 'PyTorch 커스텀', category: 'Custom',
+        docker_image: 'pytorch/pytorch:2.1.0-cuda12.1-cudnn8-runtime', entrypoint: 'python train.py',
+        param_style: 'argparse',
+        default_params: { epochs: 100, batch_size: 32, lr: 0.001 },
+        models: [],
+        description: 'PyTorch 커스텀 학습 스크립트', icon: '🔥',
+    },
+    {
+        id: 'tensorflow-custom', name: 'TensorFlow 커스텀', category: 'Custom',
+        docker_image: 'tensorflow/tensorflow:2.15.0-gpu', entrypoint: 'python train.py',
+        param_style: 'argparse',
+        default_params: { epochs: 100, batch_size: 32, learning_rate: 0.001 },
+        models: [],
+        description: 'TensorFlow 커스텀 학습 스크립트', icon: '🧠',
+    },
+    {
+        id: 'custom', name: '직접 입력', category: 'Custom',
+        docker_image: '', entrypoint: '', param_style: 'argparse',
+        default_params: {}, models: [],
+        description: '직접 Docker 이미지와 명령어 입력', icon: '⚙️',
+    },
+];
 
 export default function ProjectDetailPage() {
     const { projectId } = useParams<{ projectId: string }>();
@@ -30,7 +135,46 @@ export default function ProjectDetailPage() {
 
     // Experiment create dialog
     const [expDialog, setExpDialog] = useState(false);
-    const [expForm, setExpForm] = useState({ name: '', description: '', docker_image: '', entrypoint: '', version: '' });
+    const [expForm, setExpForm] = useState({
+        name: '', description: '', docker_image: '', entrypoint: '', version: '',
+        param_style: 'argparse' as string, model: '', default_params: {} as Record<string, any>,
+    });
+    const [selectedPreset, setSelectedPreset] = useState<string>('');
+    const [customModel, setCustomModel] = useState('');
+    const [paramsText, setParamsText] = useState('{}');
+
+    const handleSelectPreset = (presetId: string) => {
+        setSelectedPreset(presetId);
+        const preset = EXPERIMENT_PRESETS.find(p => p.id === presetId);
+        if (!preset) return;
+        const firstModel = preset.models.length > 0 ? preset.models[0].value : '';
+        const params = { ...preset.default_params, ...(firstModel ? { model: firstModel } : {}) };
+        setExpForm({
+            name: preset.name,
+            description: preset.description,
+            docker_image: preset.docker_image,
+            entrypoint: preset.entrypoint,
+            param_style: preset.param_style,
+            version: '',
+            model: firstModel,
+            default_params: params,
+        });
+        setParamsText(JSON.stringify(params, null, 2));
+        setCustomModel('');
+    };
+
+    const handleModelChange = (modelValue: string) => {
+        if (modelValue === '__custom__') {
+            const params = { ...expForm.default_params, model: customModel || '' };
+            setExpForm(f => ({ ...f, model: '', default_params: params }));
+            setParamsText(JSON.stringify(params, null, 2));
+        } else {
+            const params = { ...expForm.default_params, model: modelValue };
+            setExpForm(f => ({ ...f, model: modelValue, default_params: params }));
+            setParamsText(JSON.stringify(params, null, 2));
+            setCustomModel('');
+        }
+    };
 
     // Run create dialog
     const [runDialog, setRunDialog] = useState(false);
@@ -129,14 +273,27 @@ export default function ProjectDetailPage() {
 
     const handleCreateExperiment = async () => {
         if (!projectId) return;
+        let parsedParams = expForm.default_params;
+        try { parsedParams = JSON.parse(paramsText); } catch {}
         try {
             await experimentsAPI.create(projectId, {
-                ...expForm,
-                default_params: {},
+                name: expForm.name,
+                description: expForm.description,
+                docker_image: expForm.docker_image,
+                entrypoint: expForm.entrypoint,
+                default_params: parsedParams,
                 default_env: {},
+                param_style: expForm.param_style,
+                version: expForm.version,
             });
             setExpDialog(false);
-            setExpForm({ name: '', description: '', docker_image: '', entrypoint: '', version: '' });
+            setExpForm({
+                name: '', description: '', docker_image: '', entrypoint: '', version: '',
+                param_style: 'argparse', model: '', default_params: {},
+            });
+            setParamsText('{}');
+            setSelectedPreset('');
+            setCustomModel('');
             fetchData();
         } catch (err) { console.error(err); }
     };
@@ -180,15 +337,15 @@ export default function ProjectDetailPage() {
         <Box>
             {/* Header */}
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 4 }}>
-                <IconButton onClick={() => navigate('/projects')} sx={{ color: '#64748B' }}>
+                <IconButton onClick={() => navigate('/projects')} sx={{ color: 'text.secondary' }}>
                     <ArrowBack />
                 </IconButton>
                 <Box sx={{ flex: 1 }}>
-                    <Typography variant="h4" sx={{ fontWeight: 700, color: '#F1F5F9' }}>
+                    <Typography variant="h4" sx={{ fontWeight: 700, color: 'text.primary' }}>
                         {project?.name || 'Project'}
                     </Typography>
                     {project?.description && (
-                        <Typography variant="body2" sx={{ color: '#64748B', mt: 0.5 }}>
+                        <Typography variant="body2" sx={{ color: 'text.secondary', mt: 0.5 }}>
                             {project.description}
                         </Typography>
                     )}
@@ -218,7 +375,7 @@ export default function ProjectDetailPage() {
                             <Grid item xs={12}>
                                 <Card sx={{ textAlign: 'center' }}>
                                     <CardContent sx={{ py: 5 }}>
-                                        <Science sx={{ fontSize: 44, color: '#374151', mb: 1 }} />
+                                        <Science sx={{ fontSize: 44, color: 'action.disabled', mb: 1 }} />
                                         <Typography color="text.secondary">실험 템플릿이 없습니다</Typography>
                                         <Button startIcon={<Add />} sx={{ mt: 2 }} onClick={() => setExpDialog(true)}>
                                             만들기
@@ -247,11 +404,16 @@ export default function ProjectDetailPage() {
                                                     {exp.version && <Chip label={`v${exp.version}`} size="small" sx={{ height: 20, fontSize: '0.65rem' }} />}
                                                 </Box>
                                             </Box>
-                                            <Typography variant="caption" sx={{ color: '#64748B', display: 'block', mb: 1 }}>
+                                            <Typography variant="caption" sx={{ color: 'text.secondary', display: 'block', mb: 1 }}>
                                                 🐳 {exp.docker_image}
                                             </Typography>
+                                            {exp.default_params?.model && (
+                                                <Typography variant="caption" sx={{ color: 'text.secondary', display: 'block', mb: 1 }}>
+                                                    🧠 {exp.default_params.model}
+                                                </Typography>
+                                            )}
                                             {exp.entrypoint && (
-                                                <Typography variant="caption" sx={{ color: '#4B5563', display: 'block', mb: 1.5, fontFamily: 'monospace' }}>
+                                                <Typography variant="caption" sx={{ color: 'text.disabled', display: 'block', mb: 1.5, fontFamily: 'monospace' }}>
                                                     $ {exp.entrypoint}
                                                 </Typography>
                                             )}
@@ -270,7 +432,7 @@ export default function ProjectDetailPage() {
 
             {/* Runs Tab */}
             {tab === 1 && (
-                <TableContainer component={Paper} sx={{ backgroundColor: alpha('#111827', 0.8) }}>
+                <TableContainer component={Paper} sx={{ backgroundColor: (theme) => alpha(theme.palette.background.paper, 0.8) }}>
                     <Table>
                         <TableHead>
                             <TableRow>
@@ -300,12 +462,12 @@ export default function ProjectDetailPage() {
                                         </TableCell>
                                         <TableCell><RunStatusBadge status={run.status} /></TableCell>
                                         <TableCell>
-                                            <Typography variant="caption" sx={{ fontFamily: 'monospace', color: '#94A3B8' }}>
+                                            <Typography variant="caption" sx={{ fontFamily: 'monospace', color: 'text.secondary' }}>
                                                 {run.docker_image?.split('/').pop() || '-'}
                                             </Typography>
                                         </TableCell>
-                                        <TableCell><Typography variant="caption" sx={{ color: '#94A3B8' }}>{formatTime(run.started_at)}</Typography></TableCell>
-                                        <TableCell><Typography variant="caption" sx={{ color: '#94A3B8' }}>{formatTime(run.finished_at)}</Typography></TableCell>
+                                        <TableCell><Typography variant="caption" sx={{ color: 'text.secondary' }}>{formatTime(run.started_at)}</Typography></TableCell>
+                                        <TableCell><Typography variant="caption" sx={{ color: 'text.secondary' }}>{formatTime(run.finished_at)}</Typography></TableCell>
                                     </TableRow>
                                 ))
                             )}
@@ -340,7 +502,8 @@ export default function ProjectDetailPage() {
                         onDragLeave={() => setDragOver(false)}
                         onDrop={handleDrop}
                         sx={{
-                            border: `2px dashed ${dragOver ? '#00D9FF' : '#374151'}`,
+                            border: `2px dashed ${dragOver ? '#00D9FF' : ''}`,
+                            borderColor: dragOver ? '#00D9FF' : 'divider',
                             borderRadius: 2,
                             p: 4,
                             mb: 3,
@@ -351,11 +514,11 @@ export default function ProjectDetailPage() {
                         }}
                         onClick={() => fileInputRef.current?.click()}
                     >
-                        <CloudUpload sx={{ fontSize: 48, color: dragOver ? '#00D9FF' : '#4B5563', mb: 1 }} />
-                        <Typography sx={{ color: '#94A3B8', mb: 0.5 }}>
+                        <CloudUpload sx={{ fontSize: 48, color: dragOver ? '#00D9FF' : 'text.disabled', mb: 1 }} />
+                        <Typography sx={{ color: 'text.secondary', mb: 0.5 }}>
                             파일을 드래그하거나 클릭하여 업로드
                         </Typography>
-                        <Typography variant="caption" sx={{ color: '#4B5563' }}>
+                        <Typography variant="caption" sx={{ color: 'text.disabled' }}>
                             데이터셋, 모델 파일, 스크립트 등
                         </Typography>
                     </Box>
@@ -364,15 +527,15 @@ export default function ProjectDetailPage() {
                     {files.length === 0 ? (
                         <Card sx={{ textAlign: 'center' }}>
                             <CardContent sx={{ py: 5 }}>
-                                <Folder sx={{ fontSize: 44, color: '#374151', mb: 1 }} />
+                                <Folder sx={{ fontSize: 44, color: 'action.disabled', mb: 1 }} />
                                 <Typography color="text.secondary">업로드된 파일이 없습니다</Typography>
-                                <Typography variant="caption" sx={{ color: '#4B5563' }}>
+                                <Typography variant="caption" sx={{ color: 'text.disabled' }}>
                                     Run 실행 시 /workspace/data 경로에 자동으로 마운트됩니다
                                 </Typography>
                             </CardContent>
                         </Card>
                     ) : (
-                        <TableContainer component={Paper} sx={{ backgroundColor: alpha('#111827', 0.8) }}>
+                        <TableContainer component={Paper} sx={{ backgroundColor: (theme) => alpha(theme.palette.background.paper, 0.8) }}>
                             <Table>
                                 <TableHead>
                                     <TableRow>
@@ -387,13 +550,13 @@ export default function ProjectDetailPage() {
                                         <TableRow key={file.key} hover>
                                             <TableCell>
                                                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                                                    <InsertDriveFile sx={{ fontSize: 18, color: '#64748B' }} />
+                                                    <InsertDriveFile sx={{ fontSize: 18, color: 'text.secondary' }} />
                                                     <Box>
                                                         <Typography variant="body2" sx={{ fontWeight: 500 }}>
                                                             {file.name}
                                                         </Typography>
                                                         {file.relative_path !== file.name && (
-                                                            <Typography variant="caption" sx={{ color: '#4B5563' }}>
+                                                            <Typography variant="caption" sx={{ color: 'text.disabled' }}>
                                                                 {file.relative_path}
                                                             </Typography>
                                                         )}
@@ -401,12 +564,12 @@ export default function ProjectDetailPage() {
                                                 </Box>
                                             </TableCell>
                                             <TableCell>
-                                                <Typography variant="body2" sx={{ color: '#94A3B8' }}>
+                                                <Typography variant="body2" sx={{ color: 'text.secondary' }}>
                                                     {formatBytes(file.size)}
                                                 </Typography>
                                             </TableCell>
                                             <TableCell>
-                                                <Typography variant="caption" sx={{ color: '#94A3B8' }}>
+                                                <Typography variant="caption" sx={{ color: 'text.secondary' }}>
                                                     {new Date(file.last_modified).toLocaleString('ko-KR', {
                                                         month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit',
                                                     })}
@@ -418,7 +581,7 @@ export default function ProjectDetailPage() {
                                                         size="small"
                                                         component="a"
                                                         href={projectId ? filesAPI.downloadUrl(projectId, file.key) : '#'}
-                                                        sx={{ color: '#64748B' }}
+                                                        sx={{ color: 'text.secondary' }}
                                                     >
                                                         <Download fontSize="small" />
                                                     </IconButton>
@@ -427,7 +590,7 @@ export default function ProjectDetailPage() {
                                                     <IconButton
                                                         size="small"
                                                         onClick={() => handleDeleteFile(file.key)}
-                                                        sx={{ color: '#EF4444' }}
+                                                        sx={{ color: 'error.main' }}
                                                     >
                                                         <Delete fontSize="small" />
                                                     </IconButton>
@@ -440,25 +603,134 @@ export default function ProjectDetailPage() {
                         </TableContainer>
                     )}
 
-                    <Typography variant="caption" sx={{ color: '#4B5563', display: 'block', mt: 2 }}>
+                    <Typography variant="caption" sx={{ color: 'text.disabled', display: 'block', mt: 2 }}>
                         💡 업로드한 파일은 Run 실행 시 컨테이너의 <code>/workspace/data</code> 경로에 자동 마운트됩니다
                     </Typography>
                 </Box>
             )}
 
             {/* Experiment Create Dialog */}
-            <Dialog open={expDialog} onClose={() => setExpDialog(false)} maxWidth="sm" fullWidth>
-                <DialogTitle sx={{ fontWeight: 700 }}>새 실험 템플릿</DialogTitle>
+            <Dialog open={expDialog} onClose={() => setExpDialog(false)} maxWidth="md" fullWidth>
+                <DialogTitle sx={{ fontWeight: 700 }}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <AutoAwesome sx={{ color: '#6C63FF' }} />
+                        새 실험 템플릿
+                    </Box>
+                </DialogTitle>
                 <DialogContent>
-                    <TextField fullWidth label="이름" value={expForm.name} onChange={(e) => setExpForm({ ...expForm, name: e.target.value })} sx={{ mt: 1, mb: 2 }} required />
-                    <TextField fullWidth label="설명" value={expForm.description} onChange={(e) => setExpForm({ ...expForm, description: e.target.value })} sx={{ mb: 2 }} multiline rows={2} />
-                    <TextField fullWidth label="Docker 이미지" value={expForm.docker_image} onChange={(e) => setExpForm({ ...expForm, docker_image: e.target.value })} sx={{ mb: 2 }} required placeholder="pytorch/pytorch:2.1.0" />
-                    <TextField fullWidth label="Entrypoint" value={expForm.entrypoint} onChange={(e) => setExpForm({ ...expForm, entrypoint: e.target.value })} sx={{ mb: 2 }} placeholder="python train.py" />
-                    <TextField fullWidth label="버전" value={expForm.version} onChange={(e) => setExpForm({ ...expForm, version: e.target.value })} placeholder="1.0" />
+                    {/* Preset Selector */}
+                    <Typography variant="subtitle2" sx={{ mt: 1, mb: 1.5, fontWeight: 600, color: 'text.secondary' }}>
+                        📋 프리셋 선택
+                    </Typography>
+                    <Grid container spacing={1} sx={{ mb: 3 }}>
+                        {EXPERIMENT_PRESETS.map((preset) => (
+                            <Grid item xs={6} sm={4} md={3} key={preset.id}>
+                                <Card
+                                    onClick={() => handleSelectPreset(preset.id)}
+                                    sx={{
+                                        cursor: 'pointer', textAlign: 'center', p: 1.5,
+                                        border: 2,
+                                        borderColor: selectedPreset === preset.id ? '#6C63FF' : 'divider',
+                                        backgroundColor: selectedPreset === preset.id ? alpha('#6C63FF', 0.08) : 'transparent',
+                                        transition: 'all 0.2s',
+                                        '&:hover': { borderColor: alpha('#6C63FF', 0.5), transform: 'translateY(-1px)' },
+                                    }}
+                                >
+                                    <Typography sx={{ fontSize: '1.5rem', mb: 0.5 }}>{preset.icon}</Typography>
+                                    <Typography variant="caption" sx={{ fontWeight: 700, display: 'block', lineHeight: 1.2 }}>
+                                        {preset.name}
+                                    </Typography>
+                                    <Typography variant="caption" sx={{ color: 'text.disabled', fontSize: '0.6rem' }}>
+                                        {preset.category}
+                                    </Typography>
+                                </Card>
+                            </Grid>
+                        ))}
+                    </Grid>
+
+                    {/* Model Selection (if preset has models) */}
+                    {(() => {
+                        const preset = EXPERIMENT_PRESETS.find(p => p.id === selectedPreset);
+                        if (!preset || preset.models.length === 0) return null;
+                        return (
+                            <>
+                                <Typography variant="subtitle2" sx={{ mb: 1.5, fontWeight: 600, color: 'text.secondary' }}>
+                                    🧠 학습 모델 선택
+                                </Typography>
+                                <TextField
+                                    fullWidth select label="모델" sx={{ mb: 1.5 }}
+                                    value={expForm.model || '__custom__'}
+                                    onChange={(e) => handleModelChange(e.target.value)}
+                                    SelectProps={{ native: true }}
+                                >
+                                    {preset.models.map(m => (
+                                        <option key={m.value} value={m.value}>{m.label}</option>
+                                    ))}
+                                    <option value="__custom__">직접 입력 (커스텀 모델)</option>
+                                </TextField>
+                                {(expForm.model === '' || !preset.models.find(m => m.value === expForm.model)) && (
+                                    <TextField
+                                        fullWidth label="커스텀 모델 경로" sx={{ mb: 1.5 }}
+                                        placeholder="/workspace/data/my_model.pt 또는 모델명"
+                                        value={customModel}
+                                        onChange={(e) => {
+                                            setCustomModel(e.target.value);
+                                            const params = { ...expForm.default_params, model: e.target.value };
+                                            setExpForm(f => ({ ...f, default_params: params }));
+                                            setParamsText(JSON.stringify(params, null, 2));
+                                        }}
+                                        helperText="프로젝트 파일에 업로드한 .pt 파일은 /workspace/data/ 경로로 접근 가능"
+                                    />
+                                )}
+                            </>
+                        );
+                    })()}
+
+                    {/* Form Fields */}
+                    <Typography variant="subtitle2" sx={{ mb: 1.5, fontWeight: 600, color: 'text.secondary' }}>
+                        <Settings sx={{ fontSize: 16, mr: 0.5, verticalAlign: 'text-bottom' }} />
+                        상세 설정
+                    </Typography>
+                    <TextField fullWidth label="템플릿 이름" value={expForm.name}
+                        onChange={(e) => setExpForm({ ...expForm, name: e.target.value })}
+                        sx={{ mb: 2 }} required />
+                    <TextField fullWidth label="설명" value={expForm.description}
+                        onChange={(e) => setExpForm({ ...expForm, description: e.target.value })}
+                        sx={{ mb: 2 }} multiline rows={2} />
+                    <TextField fullWidth label="Docker 이미지" value={expForm.docker_image}
+                        onChange={(e) => setExpForm({ ...expForm, docker_image: e.target.value })}
+                        sx={{ mb: 2 }} required placeholder="ultralytics/ultralytics:latest" />
+                    <TextField fullWidth label="Entrypoint (실행 명령)" value={expForm.entrypoint}
+                        onChange={(e) => setExpForm({ ...expForm, entrypoint: e.target.value })}
+                        sx={{ mb: 2 }} placeholder="yolo detect train" />
+                    <Grid container spacing={2} sx={{ mb: 2 }}>
+                        <Grid item xs={6}>
+                            <TextField fullWidth label="파라미터 형식" select value={expForm.param_style}
+                                onChange={(e) => setExpForm({ ...expForm, param_style: e.target.value })}
+                                SelectProps={{ native: true }}
+                                helperText={expForm.param_style === 'equals' ? 'key=value (YOLO 스타일)' : '--key=value (Python argparse)'}
+                            >
+                                <option value="argparse">argparse (--key=value)</option>
+                                <option value="equals">YOLO식 (key=value)</option>
+                            </TextField>
+                        </Grid>
+                        <Grid item xs={6}>
+                            <TextField fullWidth label="버전" value={expForm.version}
+                                onChange={(e) => setExpForm({ ...expForm, version: e.target.value })} placeholder="1.0" />
+                        </Grid>
+                    </Grid>
+                    <TextField fullWidth label="기본 파라미터 (JSON)" multiline rows={3}
+                        value={paramsText}
+                        onChange={(e) => setParamsText(e.target.value)}
+                        error={(() => { try { JSON.parse(paramsText); return false; } catch { return true; } })()}
+                        helperText={(() => { try { JSON.parse(paramsText); return ''; } catch { return '유효하지 않은 JSON 형식입니다'; } })()}
+                        sx={{ fontFamily: 'monospace', '& textarea': { fontFamily: 'monospace', fontSize: '0.8rem' } }}
+                    />
                 </DialogContent>
                 <DialogActions sx={{ px: 3, pb: 2 }}>
-                    <Button onClick={() => setExpDialog(false)} color="inherit">취소</Button>
-                    <Button variant="contained" onClick={handleCreateExperiment} disabled={!expForm.name || !expForm.docker_image}>생성</Button>
+                    <Button onClick={() => { setExpDialog(false); setSelectedPreset(''); }} color="inherit">취소</Button>
+                    <Button variant="contained" onClick={handleCreateExperiment}
+                        disabled={!expForm.name || !expForm.docker_image}>생성</Button>
                 </DialogActions>
             </Dialog>
 

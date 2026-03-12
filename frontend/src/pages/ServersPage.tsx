@@ -103,8 +103,8 @@ export default function ServersPage() {
         <Box>
             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 4 }}>
                 <Box>
-                    <Typography variant="h4" sx={{ fontWeight: 700, color: '#F1F5F9' }}>서버 관리</Typography>
-                    <Typography variant="body2" sx={{ color: '#64748B' }}>학습 서버 및 Runner 상태를 관리합니다</Typography>
+                    <Typography variant="h4" sx={{ fontWeight: 700, color: 'text.primary' }}>서버 관리</Typography>
+                    <Typography variant="body2" sx={{ color: 'text.secondary' }}>학습 서버 및 Runner 상태를 관리합니다</Typography>
                 </Box>
                 <Box sx={{ display: 'flex', gap: 1 }}>
                     <Button variant="outlined" startIcon={<Refresh />} onClick={fetchData} size="small">새로고침</Button>
@@ -113,7 +113,7 @@ export default function ServersPage() {
             </Box>
 
             {/* Server Cards */}
-            <Typography variant="h6" sx={{ fontWeight: 700, color: '#F1F5F9', mb: 2 }}>🖥️ 서버 목록</Typography>
+            <Typography variant="h6" sx={{ fontWeight: 700, color: 'text.primary', mb: 2 }}>🖥️ 서버 목록</Typography>
             <Grid container spacing={2.5} sx={{ mb: 4 }}>
                 {loading ? (
                     Array.from({ length: 3 }).map((_, i) => (
@@ -125,7 +125,7 @@ export default function ServersPage() {
                     <Grid item xs={12}>
                         <Card sx={{ textAlign: 'center' }}>
                             <CardContent sx={{ py: 5 }}>
-                                <Dns sx={{ fontSize: 48, color: '#374151', mb: 2 }} />
+                                <Dns sx={{ fontSize: 48, color: 'action.disabled', mb: 2 }} />
                                 <Typography color="text.secondary">등록된 서버가 없습니다</Typography>
                                 <Button startIcon={<Add />} sx={{ mt: 2 }} onClick={() => setDialog(true)}>서버 추가</Button>
                             </CardContent>
@@ -169,7 +169,7 @@ export default function ServersPage() {
                 <DialogContent>
                     <TextField fullWidth label="서버 이름" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} sx={{ mt: 1, mb: 2 }} required />
 
-                    <Typography variant="subtitle2" sx={{ mt: 2, mb: 1, color: '#94A3B8' }}>기본 정보</Typography>
+                    <Typography variant="subtitle2" sx={{ mt: 2, mb: 1, color: 'text.secondary' }}>기본 정보</Typography>
                     <Grid container spacing={2} sx={{ mb: 2 }}>
                         <Grid item xs={6}>
                             <TextField fullWidth label="Hostname (예: server-01)" value={form.hostname} onChange={(e) => setForm({ ...form, hostname: e.target.value })} required />
@@ -179,7 +179,7 @@ export default function ServersPage() {
                         </Grid>
                     </Grid>
 
-                    <Typography variant="subtitle2" sx={{ mt: 2, mb: 1, color: '#94A3B8' }}>SSH 접속 정보 (Agentless 실행용)</Typography>
+                    <Typography variant="subtitle2" sx={{ mt: 2, mb: 1, color: 'text.secondary' }}>SSH 접속 정보 (Agentless 실행용)</Typography>
                     <Grid container spacing={2} sx={{ mb: 2 }}>
                         <Grid item xs={8}>
                             <TextField fullWidth label="SSH Host (IP)" value={form.ssh_host} onChange={(e) => setForm({ ...form, ssh_host: e.target.value })} />
@@ -195,7 +195,7 @@ export default function ServersPage() {
                         </Grid>
                     </Grid>
 
-                    <Typography variant="subtitle2" sx={{ mt: 2, mb: 1, color: '#94A3B8' }}>하드웨어 & 환경</Typography>
+                    <Typography variant="subtitle2" sx={{ mt: 2, mb: 1, color: 'text.secondary' }}>하드웨어 & 환경</Typography>
                     <Grid container spacing={2}>
                         <Grid item xs={6}>
                             <TextField fullWidth label="GPU 수" type="number" value={form.gpu_count} onChange={(e) => setForm({ ...form, gpu_count: e.target.value })} />

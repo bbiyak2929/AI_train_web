@@ -66,7 +66,7 @@ export default function ServerCard({ server, onClick }: Props) {
                         <Typography variant="subtitle2" sx={{ fontWeight: 700, color: isDark ? '#F1F5F9' : '#1E293B' }}>
                             {server.name}
                         </Typography>
-                        <Typography variant="caption" sx={{ color: '#64748B' }}>
+                        <Typography variant="caption" sx={{ color: 'text.secondary' }}>
                             {server.status.toUpperCase()}
                         </Typography>
                     </Box>
@@ -74,8 +74,8 @@ export default function ServerCard({ server, onClick }: Props) {
 
                 {/* GPU Info */}
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1.5 }}>
-                    <GpuIcon sx={{ fontSize: 16, color: '#64748B' }} />
-                    <Typography variant="caption" sx={{ color: '#94A3B8' }}>
+                    <GpuIcon sx={{ fontSize: 16, color: 'text.secondary' }} />
+                    <Typography variant="caption" sx={{ color: 'text.secondary' }}>
                         {server.gpu_model || 'GPU'} × {server.gpu_count}
                     </Typography>
                 </Box>
@@ -83,8 +83,8 @@ export default function ServerCard({ server, onClick }: Props) {
                 {/* GPU Usage Bar */}
                 <Box sx={{ mb: 1.5 }}>
                     <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
-                        <Typography variant="caption" sx={{ color: '#64748B' }}>GPU 사용률</Typography>
-                        <Typography variant="caption" sx={{ color: '#94A3B8', fontWeight: 600 }}>
+                        <Typography variant="caption" sx={{ color: 'text.secondary' }}>GPU 사용률</Typography>
+                        <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 600 }}>
                             {gpuUsage}%
                         </Typography>
                     </Box>
@@ -112,7 +112,7 @@ export default function ServerCard({ server, onClick }: Props) {
                         sx={{
                             fontSize: '0.7rem',
                             backgroundColor: alpha('#6C63FF', 0.15),
-                            color: '#8B83FF',
+                            color: 'primary.light',
                             fontWeight: 600,
                         }}
                     />

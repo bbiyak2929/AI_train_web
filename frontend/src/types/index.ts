@@ -73,6 +73,7 @@ export interface Experiment {
     entrypoint?: string;
     default_params: Record<string, any>;
     default_env: Record<string, any>;
+    param_style?: string;
     version?: string;
     created_at: string;
     updated_at: string;
