@@ -39,6 +39,10 @@ export const authAPI = {
         api.post('/auth/login', { username, password }),
     register: (data: { username: string; email: string; password: string; full_name?: string }) =>
         api.post('/auth/register', data),
+    verifyEmail: (email: string, code: string) =>
+        api.post('/auth/verify-email', { email, code }),
+    resendVerify: (email: string) =>
+        api.post('/auth/resend-verify', { email }),
     me: () => api.get('/auth/me'),
     updateNotifications: (notify_email: boolean) =>
         api.patch('/auth/me/notifications', { notify_email }),

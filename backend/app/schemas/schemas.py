@@ -68,6 +68,15 @@ class NotificationUpdate(BaseModel):
     notify_email: bool
 
 
+class VerifyEmailRequest(BaseModel):
+    email: str
+    code: str
+
+
+class ResendVerifyRequest(BaseModel):
+    email: str
+
+
 # ── Project ───────────────────────────────────────────────
 class ProjectCreate(BaseModel):
     name: str = Field(min_length=1, max_length=200)
@@ -126,6 +135,7 @@ class ExperimentCreate(BaseModel):
     entrypoint: Optional[str] = None
     default_params: Dict[str, Any] = {}
     default_env: Dict[str, Any] = {}
+    param_style: str = 'argparse'   # 'argparse' (--k=v) or 'equals' (k=v)
     version: Optional[str] = None
 
 
@@ -136,6 +146,7 @@ class ExperimentUpdate(BaseModel):
     entrypoint: Optional[str] = None
     default_params: Optional[Dict[str, Any]] = None
     default_env: Optional[Dict[str, Any]] = None
+    param_style: Optional[str] = None
     version: Optional[str] = None
 
 
@@ -148,6 +159,7 @@ class ExperimentOut(BaseModel):
     entrypoint: Optional[str] = None
     default_params: Dict[str, Any] = {}
     default_env: Dict[str, Any] = {}
+    param_style: str = 'argparse'
     version: Optional[str] = None
     created_at: datetime
     updated_at: datetime

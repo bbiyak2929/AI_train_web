@@ -47,6 +47,7 @@ def create_experiment(
         entrypoint=body.entrypoint,
         default_params=body.default_params,
         default_env=body.default_env,
+        param_style=body.param_style,
         version=body.version,
     )
     db.add(experiment)

@@ -57,7 +57,11 @@ def create_run(
 
     # Build command
     entrypoint = experiment.entrypoint or ""
-    param_str = " ".join(f"--{k}={v}" for k, v in merged_params.items())
+    style = getattr(experiment, 'param_style', 'argparse') or 'argparse'
+    if style == 'equals':
+        param_str = " ".join(f"{k}={v}" for k, v in merged_params.items())
+    else:
+        param_str = " ".join(f"--{k}={v}" for k, v in merged_params.items())
     command = f"{entrypoint} {param_str}".strip()
 
     run = Run(

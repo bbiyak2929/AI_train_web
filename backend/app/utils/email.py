@@ -35,6 +35,46 @@ def send_email(to_email: str, subject: str, html_body: str):
         return False
 
 
+def send_verification_email(to_email: str, code: str):
+    """이메일 인증 코드를 발송합니다."""
+    subject = "🔐 AI Training Platform — 이메일 인증 코드"
+
+    html = f"""
+    <div style="font-family: 'Segoe UI', Arial, sans-serif; max-width: 520px; margin: 0 auto;
+                background: #111827; border-radius: 12px; overflow: hidden; border: 1px solid #1F2937;">
+        <div style="background: linear-gradient(135deg, #6C63FF, #00D9FF); padding: 24px 28px;">
+            <h2 style="margin: 0; color: #fff; font-size: 18px;">AI Training Platform</h2>
+            <p style="margin: 6px 0 0; color: rgba(255,255,255,0.85); font-size: 13px;">이메일 인증</p>
+        </div>
+        <div style="padding: 28px; text-align: center;">
+            <p style="color: #E2E8F0; font-size: 15px; margin: 0 0 24px;">
+                회원가입을 완료하려면 아래 인증 코드를 입력해주세요.
+            </p>
+            <div style="background: #1F2937; border-radius: 12px; padding: 24px; margin-bottom: 20px;
+                        display: inline-block; min-width: 200px;">
+                <p style="color: #64748B; font-size: 12px; margin: 0 0 8px; text-transform: uppercase; letter-spacing: 2px;">
+                    인증 코드
+                </p>
+                <p style="color: #00D9FF; font-size: 36px; font-weight: 700; margin: 0;
+                          letter-spacing: 8px; font-family: monospace;">
+                    {code}
+                </p>
+            </div>
+            <p style="color: #64748B; font-size: 12px; margin: 16px 0 0;">
+                이 코드는 10분간 유효합니다.
+            </p>
+        </div>
+        <div style="background: #0D1117; padding: 14px 28px; text-align: center;">
+            <p style="color: #475569; font-size: 11px; margin: 0;">
+                본인이 요청하지 않았다면 이 이메일을 무시해주세요.
+            </p>
+        </div>
+    </div>
+    """
+
+    return send_email(to_email, subject, html)
+
+
 def send_run_completed_email(to_email: str, username: str, run_name: str, status: str, project_name: str = ""):
     """Run 완료 알림 이메일을 보냅니다."""
     is_success = status == "success"

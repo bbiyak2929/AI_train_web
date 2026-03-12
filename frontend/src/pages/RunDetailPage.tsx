@@ -114,17 +114,17 @@ export default function RunDetailPage() {
         <Box>
             {/* Header */}
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 3 }}>
-                <IconButton onClick={() => navigate(`/projects/${projectId}`)} sx={{ color: '#64748B' }}>
+                <IconButton onClick={() => navigate(`/projects/${projectId}`)} sx={{ color: 'text.secondary' }}>
                     <ArrowBack />
                 </IconButton>
                 <Box sx={{ flex: 1 }}>
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-                        <Typography variant="h5" sx={{ fontWeight: 700, color: '#F1F5F9' }}>
+                        <Typography variant="h5" sx={{ fontWeight: 700, color: 'text.primary' }}>
                             {run.name || `Run ${run.id.slice(0, 8)}`}
                         </Typography>
                         <RunStatusBadge status={run.status} size="medium" />
                     </Box>
-                    <Typography variant="caption" sx={{ color: '#64748B', fontFamily: 'monospace' }}>
+                    <Typography variant="caption" sx={{ color: 'text.secondary', fontFamily: 'monospace' }}>
                         ID: {run.id}
                     </Typography>
                 </Box>
@@ -133,7 +133,7 @@ export default function RunDetailPage() {
                         중지
                     </Button>
                 )}
-                <IconButton onClick={fetchData} sx={{ color: '#64748B' }}>
+                <IconButton onClick={fetchData} sx={{ color: 'text.secondary' }}>
                     <Refresh />
                 </IconButton>
             </Box>
@@ -150,7 +150,7 @@ export default function RunDetailPage() {
                     <Grid item xs={12} md={8}>
                         <Card>
                             <CardContent>
-                                <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 2, color: '#94A3B8' }}>
+                                <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 2, color: 'text.secondary' }}>
                                     실행 정보
                                 </Typography>
                                 <Table size="small">
@@ -166,7 +166,7 @@ export default function RunDetailPage() {
                                             ['재시도', `${run.retry_count}회`],
                                         ].map(([label, value], i) => (
                                             <TableRow key={i}>
-                                                <TableCell sx={{ width: 140, fontWeight: 600, color: '#64748B', border: 'none', py: 1 }}>
+                                                <TableCell sx={{ width: 140, fontWeight: 600, color: 'text.secondary', border: 'none', py: 1 }}>
                                                     {label as string}
                                                 </TableCell>
                                                 <TableCell sx={{ border: 'none', py: 1 }}>
@@ -182,12 +182,12 @@ export default function RunDetailPage() {
                     <Grid item xs={12} md={4}>
                         <Card>
                             <CardContent>
-                                <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 2, color: '#94A3B8' }}>
+                                <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 2, color: 'text.secondary' }}>
                                     파라미터
                                 </Typography>
                                 <Box sx={{
                                     p: 2, borderRadius: 2, backgroundColor: alpha('#000', 0.3),
-                                    fontFamily: 'monospace', fontSize: '0.8rem', color: '#94A3B8',
+                                    fontFamily: 'monospace', fontSize: '0.8rem', color: 'text.secondary',
                                     whiteSpace: 'pre-wrap', maxHeight: 300, overflow: 'auto',
                                 }}>
                                     {JSON.stringify(run.params, null, 2)}
@@ -217,7 +217,7 @@ export default function RunDetailPage() {
                         size="small" placeholder="로그 검색..." value={logFilter}
                         onChange={(e) => setLogFilter(e.target.value)}
                         InputProps={{
-                            startAdornment: <InputAdornment position="start"><Search sx={{ fontSize: 18, color: '#64748B' }} /></InputAdornment>,
+                            startAdornment: <InputAdornment position="start"><Search sx={{ fontSize: 18, color: 'text.secondary' }} /></InputAdornment>,
                         }}
                         sx={{ mb: 2, width: 300 }}
                     />
@@ -281,7 +281,7 @@ export default function RunDetailPage() {
                     <CardContent>
                         {artifacts.length === 0 ? (
                             <Box sx={{ textAlign: 'center', py: 4 }}>
-                                <InsertDriveFile sx={{ fontSize: 40, color: '#374151', mb: 1 }} />
+                                <InsertDriveFile sx={{ fontSize: 40, color: 'action.disabled', mb: 1 }} />
                                 <Typography color="text.secondary">아티팩트가 없습니다</Typography>
                             </Box>
                         ) : (
@@ -292,7 +292,7 @@ export default function RunDetailPage() {
                                         '&:hover': { backgroundColor: alpha('#6C63FF', 0.05) },
                                     }}>
                                         <ListItemIcon>
-                                            <InsertDriveFile sx={{ color: '#64748B' }} />
+                                            <InsertDriveFile sx={{ color: 'text.secondary' }} />
                                         </ListItemIcon>
                                         <ListItemText
                                             primary={art.filename}
@@ -300,7 +300,7 @@ export default function RunDetailPage() {
                                             primaryTypographyProps={{ fontWeight: 500 }}
                                             secondaryTypographyProps={{ fontSize: '0.75rem' }}
                                         />
-                                        <IconButton size="small" sx={{ color: '#64748B' }}>
+                                        <IconButton size="small" sx={{ color: 'text.secondary' }}>
                                             <Download fontSize="small" />
                                         </IconButton>
                                     </ListItem>

@@ -20,6 +20,7 @@ class Experiment(Base):
     entrypoint = Column(String(1000), nullable=True)     # e.g. "python train.py"
     default_params = Column(JSONB, default=dict)          # {"epochs": 100, "batch_size": 32, ...}
     default_env = Column(JSONB, default=dict)             # 환경변수 기본값
+    param_style = Column(String(20), default='argparse')   # 'argparse' (--k=v) or 'equals' (k=v, YOLO식)
     version = Column(String(50), nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

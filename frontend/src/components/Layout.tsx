@@ -81,7 +81,7 @@ export default function Layout({ user, onLogout, onUserUpdate }: LayoutProps) {
                     <Typography variant="subtitle1" sx={{ fontWeight: 700, lineHeight: 1.2, color: isDark ? '#F1F5F9' : '#1E293B' }}>
                         AI Training
                     </Typography>
-                    <Typography variant="caption" sx={{ color: '#64748B', fontSize: '0.65rem' }}>
+                    <Typography variant="caption" sx={{ color: 'text.secondary', fontSize: '0.65rem' }}>
                         Management Platform
                     </Typography>
                 </Box>
@@ -113,7 +113,7 @@ export default function Layout({ user, onLogout, onUserUpdate }: LayoutProps) {
                             >
                                 <ListItemIcon sx={{
                                     minWidth: 40,
-                                    color: active ? '#6C63FF' : '#64748B',
+                                    color: active ? '#6C63FF' : 'text.secondary',
                                 }}>
                                     {item.icon}
                                 </ListItemIcon>
@@ -154,18 +154,18 @@ export default function Layout({ user, onLogout, onUserUpdate }: LayoutProps) {
                         <Typography variant="body2" sx={{ fontWeight: 600, color: isDark ? '#F1F5F9' : '#1E293B' }} noWrap>
                             {user?.full_name || user?.username || 'User'}
                         </Typography>
-                        <Typography variant="caption" sx={{ color: '#64748B' }} noWrap>
+                        <Typography variant="caption" sx={{ color: 'text.secondary' }} noWrap>
                             {user?.email || ''}
                         </Typography>
                     </Box>
                     <Tooltip title={user?.notify_email ? '이메일 알림 끄기' : '이메일 알림 켜기'}>
                         <IconButton size="small" onClick={handleToggleNotify}
-                            sx={{ color: user?.notify_email ? '#10B981' : '#64748B' }}>
+                            sx={{ color: user?.notify_email ? '#10B981' : 'text.secondary' }}>
                             {user?.notify_email ? <NotifOnIcon fontSize="small" /> : <NotifOffIcon fontSize="small" />}
                         </IconButton>
                     </Tooltip>
                     <Tooltip title="로그아웃">
-                        <IconButton size="small" onClick={onLogout} sx={{ color: '#64748B' }}>
+                        <IconButton size="small" onClick={onLogout} sx={{ color: 'text.secondary' }}>
                             <LogoutIcon fontSize="small" />
                         </IconButton>
                     </Tooltip>
