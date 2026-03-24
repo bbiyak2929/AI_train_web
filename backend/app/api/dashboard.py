@@ -69,3 +69,26 @@ def failed_runs(
         .all()
     )
     return runs
+
+
+@router.get("/runs-by-status", response_model=List[RunListOut])
+def runs_by_status(
+    status: str,
+    limit: int = 20,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """상태별 Run 목록을 반환합니다. status는 쉼표로 여러 개 지정 가능."""
+    statuses = [s.strip() for s in status.split(",") if s.strip()]
+    valid = {e.value for e in RunStatus}
+    filters = [RunStatus(s) for s in statuses if s in valid]
+    if not filters:
+        return []
+    runs = (
+        db.query(Run)
+        .filter(Run.status.in_(filters))
+        .order_by(Run.created_at.desc())
+        .limit(limit)
+        .all()
+    )
+    return runs

@@ -115,6 +115,15 @@ def login(body: LoginRequest, db: Session = Depends(get_db)):
     ).first()
     if not user or not verify_password(body.password, user.hashed_password):
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid credentials")
+
+    # Legacy superuser accounts may predate email verification rollout.
+    # Auto-heal their flags on successful password verification.
+    if user.is_superuser and (not user.email_verified or not user.is_active):
+        user.email_verified = True
+        user.is_active = True
+        db.commit()
+        db.refresh(user)
+
     if not user.email_verified:
         raise HTTPException(status.HTTP_403_FORBIDDEN, "이메일 인증이 필요합니다.")
     if not user.is_active:
