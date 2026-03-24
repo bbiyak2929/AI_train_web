@@ -175,6 +175,10 @@ class RunCreate(BaseModel):
     params: Dict[str, Any] = {}
     env_vars: Dict[str, Any] = {}
     server_id: Optional[UUID] = None    # None = 자동 선택
+    data_source_type: str = "project_files"  # project_files | remote_path | none
+    remote_data_path: Optional[str] = None   # 원격 서버에 이미 있는 데이터 경로
+    container_mount_path: str = "/workspace/data"  # 컨테이너 내 마운트 경로
+    selected_files: Optional[List[str]] = None  # 선택된 파일 key 목록 (null이면 전체)
 
 
 class RunOut(BaseModel):
@@ -195,6 +199,10 @@ class RunOut(BaseModel):
     finished_at: Optional[datetime] = None
     retry_count: int = 0
     error_message: Optional[str] = None
+    data_source_type: str = "project_files"
+    remote_data_path: Optional[str] = None
+    container_mount_path: str = "/workspace/data"
+    selected_files: Optional[List[str]] = None
     created_at: datetime
     updated_at: datetime
 

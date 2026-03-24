@@ -42,6 +42,7 @@ class Settings(BaseSettings):
 
     # ── Runner ────────────────────────────────────
     RUNNER_TOKEN: str = "changeme_runner_registration_token"
+    GPU_ENABLED: bool = True  # Enable GPU support via --gpus all
 
     @property
     def cors_origins(self) -> List[str]:

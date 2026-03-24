@@ -3,9 +3,9 @@ Files API — 프로젝트별 파일 업로드 / 목록 / 삭제 / 다운로드 
 """
 import io
 import logging
+import zipfile
 from uuid import UUID
 from typing import List, Optional
-
 import boto3
 from botocore.exceptions import ClientError
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Query
@@ -197,6 +197,45 @@ def delete_file(
     return {"deleted": key}
 
 
+@router.post("/rename")
+def rename_file(
+    project_id: UUID,
+    key: str = Query(..., description="이름을 변경할 파일의 전체 key"),
+    new_name: str = Query(..., description="새 파일 이름"),
+    current_user: User = Depends(get_current_user),
+):
+    """파일 이름을 변경합니다 (S3 copy + delete)."""
+    expected_prefix = f"projects/{project_id}/files"
+    if not key.startswith(expected_prefix):
+        raise HTTPException(403, "Access denied")
+
+    # 새 이름 검증
+    new_name = new_name.strip()
+    if not new_name or ".." in new_name or "/" in new_name or "\\" in new_name:
+        raise HTTPException(400, "Invalid filename")
+
+    # 기존 key에서 디렉토리 부분 추출 후 새 이름으로 교체
+    parts = key.rsplit("/", 1)
+    new_key = f"{parts[0]}/{new_name}" if len(parts) > 1 else new_name
+
+    if new_key == key:
+        return {"key": key, "new_key": new_key}
+
+    s3 = _get_s3()
+    try:
+        # 복사 후 삭제
+        s3.copy_object(
+            Bucket=settings.MINIO_BUCKET_NAME,
+            CopySource={"Bucket": settings.MINIO_BUCKET_NAME, "Key": key},
+            Key=new_key,
+        )
+        s3.delete_object(Bucket=settings.MINIO_BUCKET_NAME, Key=key)
+    except ClientError as e:
+        raise HTTPException(500, f"Rename failed: {e}")
+
+    return {"key": key, "new_key": new_key, "new_name": new_name}
+
+
 @router.get("/download")
 def download_file(
     project_id: UUID,
@@ -220,3 +259,114 @@ def download_file(
         media_type=response.get("ContentType", "application/octet-stream"),
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
+
+
+@router.post("/upload-folder")
+async def upload_folder(
+    project_id: UUID,
+    file: UploadFile = File(...),
+    path: str = Query("", description="하위 폴더 경로"),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    ZIP 파일을 업로드하면 자동으로 압축 해제하여 폴더 구조를 유지한 채 저장합니다.
+    데이터셋 폴더(images/, labels/ 등)를 통째로 업로드할 때 사용합니다.
+    """
+    if not file.filename or not file.filename.lower().endswith(".zip"):
+        raise HTTPException(400, "ZIP 파일만 업로드 가능합니다")
+
+    content = await file.read()
+    try:
+        zf = zipfile.ZipFile(io.BytesIO(content))
+    except zipfile.BadZipFile:
+        raise HTTPException(400, "유효하지 않은 ZIP 파일입니다")
+
+    s3 = _get_s3()
+    _ensure_bucket(s3)
+
+    results = []
+    for info in zf.infolist():
+        # 디렉토리 엔트리 스킵
+        if info.is_dir():
+            continue
+        # 숨김 파일(__MACOSX 등) 스킵
+        inner_path = info.filename
+        if inner_path.startswith("__MACOSX") or "/.DS_Store" in inner_path or inner_path.endswith(".DS_Store"):
+            continue
+        if ".." in inner_path:
+            continue
+
+        # 안전한 경로 생성
+        cleaned = inner_path.replace("\\", "/").lstrip("/")
+        prefix = _project_prefix(project_id, path)
+        if prefix.endswith("/"):
+            key = f"{prefix}{cleaned}"
+        else:
+            key = f"{prefix}/{cleaned}"
+
+        file_data = zf.read(info.filename)
+        s3.put_object(
+            Bucket=settings.MINIO_BUCKET_NAME,
+            Key=key,
+            Body=file_data,
+            ContentType="application/octet-stream",
+        )
+        results.append({
+            "filename": cleaned.split("/")[-1],
+            "path": key,
+            "size": len(file_data),
+        })
+
+    zf.close()
+    return {"extracted_files": len(results), "files": results}
+
+
+@router.post("/upload-with-path")
+async def upload_files_with_paths(
+    project_id: UUID,
+    files: List[UploadFile] = File(...),
+    paths: str = Query("", description="쉼표 구분 상대경로 목록 (webkitRelativePath)"),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    폴더 업로드 시 각 파일의 상대 경로를 유지하여 저장합니다.
+    프론트엔드에서 webkitdirectory를 사용할 때 호출됩니다.
+    """
+    s3 = _get_s3()
+    _ensure_bucket(s3)
+
+    path_list = [p.strip() for p in paths.split(",") if p.strip()] if paths else []
+    results = []
+
+    for i, f in enumerate(files):
+        if not f.filename:
+            continue
+
+        # 상대경로가 있으면 그대로 사용, 없으면 파일명만
+        if i < len(path_list) and path_list[i]:
+            rel = path_list[i].replace("\\", "/")
+        else:
+            rel = f.filename.replace("\\", "/").split("/")[-1]
+
+        if ".." in rel:
+            continue
+
+        cleaned = rel.lstrip("/")
+        base_prefix = f"projects/{project_id}/files"
+        key = f"{base_prefix}/{cleaned}"
+
+        content = await f.read()
+        s3.put_object(
+            Bucket=settings.MINIO_BUCKET_NAME,
+            Key=key,
+            Body=content,
+            ContentType=f.content_type or "application/octet-stream",
+        )
+        results.append({
+            "filename": cleaned.split("/")[-1],
+            "path": key,
+            "relative_path": cleaned,
+            "size": len(content),
+        })
+
+    return results

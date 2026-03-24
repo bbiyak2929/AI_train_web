@@ -16,6 +16,9 @@ import paramiko
 
 router = APIRouter(prefix="/servers", tags=["Servers"])
 
+SSH_CONNECT_TIMEOUT = 3
+SSH_CMD_TIMEOUT = 5
+
 
 @router.post("/", response_model=ServerOut, status_code=201)
 def create_server(
@@ -36,7 +39,9 @@ def create_server(
                 port=body.ssh_port,
                 username=body.ssh_user,
                 password=body.ssh_password,
-                timeout=5
+                timeout=SSH_CONNECT_TIMEOUT,
+                banner_timeout=SSH_CONNECT_TIMEOUT,
+                auth_timeout=SSH_CONNECT_TIMEOUT,
             )
             # 서버 상태를 ONLINE으로
             body_dict = body.model_dump()
@@ -133,7 +138,9 @@ def update_server(
                 port=server.ssh_port,
                 username=server.ssh_user,
                 password=server.ssh_password,
-                timeout=5
+                timeout=SSH_CONNECT_TIMEOUT,
+                banner_timeout=SSH_CONNECT_TIMEOUT,
+                auth_timeout=SSH_CONNECT_TIMEOUT,
             )
             server.status = ServerStatus.ONLINE
             ssh.close()
@@ -171,6 +178,13 @@ def get_gpu_status(
     if not server.ssh_host or not server.ssh_user or not server.ssh_password:
         raise HTTPException(400, "SSH 접속 정보가 없습니다")
 
+    if server.status == ServerStatus.OFFLINE:
+        return ServerGpuStatus(
+            server_id=server.id,
+            server_name=server.name,
+            error="서버가 OFFLINE 상태입니다",
+        )
+
     try:
         ssh = paramiko.SSHClient()
         ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
@@ -179,7 +193,9 @@ def get_gpu_status(
             port=server.ssh_port,
             username=server.ssh_user,
             password=server.ssh_password,
-            timeout=10
+            timeout=SSH_CONNECT_TIMEOUT,
+            banner_timeout=SSH_CONNECT_TIMEOUT,
+            auth_timeout=SSH_CONNECT_TIMEOUT,
         )
 
         # nvidia-smi CSV query
@@ -188,7 +204,7 @@ def get_gpu_status(
             "memory.used,memory.total,memory.free,power.draw,power.limit,fan.speed "
             "--format=csv,noheader,nounits"
         )
-        _, stdout_gpu, stderr_gpu = ssh.exec_command(gpu_cmd, timeout=10)
+        _, stdout_gpu, stderr_gpu = ssh.exec_command(gpu_cmd, timeout=SSH_CMD_TIMEOUT)
         gpu_output = stdout_gpu.read().decode().strip()
         gpu_err = stderr_gpu.read().decode().strip()
 
@@ -213,30 +229,30 @@ def get_gpu_status(
         # driver & cuda version
         _, stdout_ver, _ = ssh.exec_command(
             "nvidia-smi --query-gpu=driver_version --format=csv,noheader | head -1",
-            timeout=10
+            timeout=SSH_CMD_TIMEOUT
         )
         driver_version = stdout_ver.read().decode().strip()
 
         _, stdout_cuda, _ = ssh.exec_command(
             "nvidia-smi | grep 'CUDA Version' | awk '{print $NF}'",
-            timeout=10
+            timeout=SSH_CMD_TIMEOUT
         )
         cuda_version = stdout_cuda.read().decode().strip()
 
         # system info
         _, stdout_cpu, _ = ssh.exec_command(
             "top -bn1 | grep 'Cpu(s)' | awk '{print $2+$4}'",
-            timeout=10
+            timeout=SSH_CMD_TIMEOUT
         )
         cpu_usage = stdout_cpu.read().decode().strip()
 
         _, stdout_mem, _ = ssh.exec_command(
             "free -h | awk '/^Mem:/{print $3,$2}'",
-            timeout=10
+            timeout=SSH_CMD_TIMEOUT
         )
         mem_parts = stdout_mem.read().decode().strip().split()
 
-        _, stdout_up, _ = ssh.exec_command("uptime -p", timeout=10)
+        _, stdout_up, _ = ssh.exec_command("uptime -p", timeout=SSH_CMD_TIMEOUT)
         uptime = stdout_up.read().decode().strip()
 
         ssh.close()
@@ -254,6 +270,9 @@ def get_gpu_status(
         )
 
     except Exception as e:
+        # 접속 실패 시 서버 상태를 OFFLINE으로 반영해 다음 요청을 빠르게 처리
+        server.status = ServerStatus.OFFLINE
+        db.commit()
         return ServerGpuStatus(
             server_id=server.id,
             server_name=server.name,
@@ -282,9 +301,11 @@ def reboot_server(
             port=server.ssh_port,
             username=server.ssh_user,
             password=server.ssh_password,
-            timeout=10
+            timeout=SSH_CONNECT_TIMEOUT,
+            banner_timeout=SSH_CONNECT_TIMEOUT,
+            auth_timeout=SSH_CONNECT_TIMEOUT,
         )
-        ssh.exec_command("sudo reboot", timeout=5)
+        ssh.exec_command("sudo reboot", timeout=SSH_CMD_TIMEOUT)
         ssh.close()
     except Exception:
         pass

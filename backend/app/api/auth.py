@@ -5,6 +5,7 @@ import secrets
 from datetime import datetime, timedelta
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
+from sqlalchemy import or_
 
 from app.database import get_db
 from app.models.user import User
@@ -107,7 +108,11 @@ def resend_verify(body: ResendVerifyRequest, db: Session = Depends(get_db)):
 
 @router.post("/login", response_model=TokenResponse)
 def login(body: LoginRequest, db: Session = Depends(get_db)):
-    user = db.query(User).filter(User.username == body.username).first()
+    # username 또는 email 모두 로그인 ID로 허용
+    login_id = (body.username or "").strip()
+    user = db.query(User).filter(
+        or_(User.username == login_id, User.email == login_id)
+    ).first()
     if not user or not verify_password(body.password, user.hashed_password):
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid credentials")
     if not user.email_verified:
