@@ -36,6 +36,12 @@ class Run(Base):
     command = Column(Text, nullable=True)                  # 실행 시 확정된 커맨드
     env_vars = Column(JSONB, default=dict)                 # 환경변수
 
+    # Data source settings
+    data_source_type = Column(String(50), default="project_files")  # project_files | remote_path | none
+    remote_data_path = Column(String(1000), nullable=True)          # 원격 서버의 데이터 경로 (예: /data/datasets/coco)
+    container_mount_path = Column(String(500), default="/workspace/data")  # 컨테이너 내 마운트 경로
+    selected_files = Column(JSONB, nullable=True)  # 선택된 파일 key 목록 (null이면 전체)
+
     # Artifact / Log URIs
     artifact_uri = Column(String(1000), nullable=True)    # s3://aitrain/runs/{run_id}/artifacts/
     log_uri = Column(String(1000), nullable=True)         # s3://aitrain/runs/{run_id}/logs/

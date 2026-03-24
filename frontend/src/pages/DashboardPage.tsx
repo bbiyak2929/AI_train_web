@@ -6,7 +6,7 @@ import { useNavigate } from 'react-router-dom';
 import {
     Box, Grid, Typography, Card, CardContent, Skeleton,
     Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
-    Paper, alpha, Chip,
+    Paper, alpha, Chip, Button,
 } from '@mui/material';
 import {
     Dns as ServerIcon, PlayArrow as RunIcon,
@@ -61,13 +61,59 @@ export default function DashboardPage() {
 
     return (
         <Box>
-            <Box sx={{ mb: 4 }}>
-                <Typography variant="h4" sx={{ fontWeight: 700, color: 'text.primary', mb: 0.5 }}>
-                    대시보드
+            <Box
+                sx={{
+                    position: 'relative',
+                    mb: 4,
+                    p: { xs: 2.5, md: 3.5 },
+                    borderRadius: 4,
+                    overflow: 'hidden',
+                    border: `1px solid ${alpha('#6C63FF', 0.18)}`,
+                    background: `linear-gradient(120deg, ${alpha('#6C63FF', 0.16)} 0%, ${alpha('#00D9FF', 0.12)} 45%, ${alpha('#10B981', 0.10)} 100%)`,
+                    '@keyframes floatY': {
+                        '0%': { transform: 'translateY(0px)' },
+                        '50%': { transform: 'translateY(-16px)' },
+                        '100%': { transform: 'translateY(0px)' },
+                    },
+                    '&::before': {
+                        content: '""',
+                        position: 'absolute',
+                        width: 220,
+                        height: 220,
+                        right: -30,
+                        top: -40,
+                        borderRadius: '50%',
+                        background: `radial-gradient(circle, ${alpha('#00D9FF', 0.35)} 0%, transparent 70%)`,
+                        animation: 'floatY 6s ease-in-out infinite',
+                    },
+                    '&::after': {
+                        content: '""',
+                        position: 'absolute',
+                        width: 180,
+                        height: 180,
+                        left: -30,
+                        bottom: -40,
+                        borderRadius: '50%',
+                        background: `radial-gradient(circle, ${alpha('#6C63FF', 0.30)} 0%, transparent 70%)`,
+                        animation: 'floatY 8s ease-in-out infinite reverse',
+                    },
+                }}
+            >
+                <Typography variant="overline" sx={{ letterSpacing: '0.14em', color: 'text.secondary', fontWeight: 700 }}>
+                    HOME
                 </Typography>
-                <Typography variant="body2" sx={{ color: 'text.secondary' }}>
-                    AI 학습 서버 및 실행 상태 개요
+                <Typography variant="h4" sx={{ fontWeight: 800, color: 'text.primary', mb: 0.8, position: 'relative', zIndex: 1 }}>
+                    AI Training Control Center
                 </Typography>
+                <Typography variant="body1" sx={{ color: 'text.secondary', maxWidth: 760, position: 'relative', zIndex: 1 }}>
+                    프로젝트, 실험 템플릿, 서버 상태를 한 화면에서 관리하고 바로 학습을 실행하세요.
+                    모델 선택부터 실행 추적까지 빠르게 이어지는 홈입니다.
+                </Typography>
+                <Box sx={{ mt: 2, display: 'flex', gap: 1, flexWrap: 'wrap', position: 'relative', zIndex: 1 }}>
+                    <Button variant="contained" onClick={() => navigate('/projects')}>프로젝트 바로가기</Button>
+                    <Button variant="outlined" onClick={() => navigate('/servers')}>서버 보러가기</Button>
+                    <Chip icon={<RunIcon />} label="실시간 실행 모니터링" size="small" sx={{ height: 30 }} />
+                </Box>
             </Box>
 
             {/* Stats Cards */}

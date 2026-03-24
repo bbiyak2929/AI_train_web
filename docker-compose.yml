@@ -83,6 +83,8 @@ services:
       dockerfile: Dockerfile
     restart: unless-stopped
     env_file: .env
+    environment:
+      GPU_ENABLED: "true"
     depends_on:
       db:
         condition: service_healthy
@@ -94,6 +96,27 @@ services:
       celery -A app.worker.celery_app worker
       --loglevel=info
       --concurrency=4
+      -Q celery,runs,health
+
+  # ── Celery Beat (주기적 태스크 스케줄러) ─────────────────
+  beat:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      GPU_ENABLED: "true"
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./backend:/app
+    command: >
+      celery -A app.worker.celery_app beat
+      --loglevel=info
 
   # ── Web (Nginx + React build) ───────────────────────────
   web:

@@ -3,11 +3,17 @@ WebSocket Log Streaming — 실시간 로그 중계
 """
 import asyncio
 import logging
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Depends
+from uuid import UUID
+from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 import redis.asyncio as aioredis
 
 from app.config import settings
+from app.database import get_db
+from app.models.user import User
+from app.models.project import ProjectMember
+from app.models.run import Run
+from app.utils.auth import get_current_user
 
 router = APIRouter(tags=["Logs"])
 logger = logging.getLogger(__name__)
@@ -46,6 +52,42 @@ class LogConnectionManager:
 
 
 manager = LogConnectionManager()
+
+
+def _check_run_access(db: Session, run_id: UUID, user: User):
+    run = db.query(Run).filter(Run.id == run_id).first()
+    if not run:
+        raise HTTPException(404, "Run not found")
+
+    if user.is_superuser:
+        return run
+
+    membership = (
+        db.query(ProjectMember)
+        .filter(ProjectMember.project_id == run.project_id, ProjectMember.user_id == user.id)
+        .first()
+    )
+    if not membership:
+        raise HTTPException(403, "Access denied")
+    return run
+
+
+@router.get("/api/runs/{run_id}/logs")
+async def get_run_logs(
+    run_id: UUID,
+    limit: int = Query(500, ge=1, le=5000),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    _check_run_access(db, run_id, current_user)
+
+    redis_client = aioredis.from_url(settings.REDIS_URL, decode_responses=True)
+    key = f"logs_history:{run_id}"
+    try:
+        rows = await redis_client.lrange(key, -limit, -1)
+        return {"run_id": str(run_id), "logs": rows}
+    finally:
+        await redis_client.close()
 
 
 @router.websocket("/ws/logs/{run_id}")

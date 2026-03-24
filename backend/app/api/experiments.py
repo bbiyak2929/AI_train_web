@@ -5,6 +5,7 @@ from uuid import UUID
 from typing import List
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
+from sqlalchemy import func
 
 from app.database import get_db
 from app.models.user import User
@@ -39,9 +40,24 @@ def create_experiment(
     current_user: User = Depends(get_current_user),
 ):
     _check_experiment_access(db, project_id, current_user, min_role="editor")
+    normalized_name = body.name.strip()
+    if not normalized_name:
+        raise HTTPException(400, "Experiment name cannot be empty")
+
+    exists = (
+        db.query(Experiment.id)
+        .filter(
+            Experiment.project_id == project_id,
+            func.lower(Experiment.name) == normalized_name.lower(),
+        )
+        .first()
+    )
+    if exists:
+        raise HTTPException(409, "Experiment template name already exists in this project")
+
     experiment = Experiment(
         project_id=project_id,
-        name=body.name,
+        name=normalized_name,
         description=body.description,
         docker_image=body.docker_image,
         entrypoint=body.entrypoint,
@@ -110,7 +126,25 @@ def update_experiment(
     if not experiment:
         raise HTTPException(404, "Experiment not found")
 
-    for field, value in body.model_dump(exclude_unset=True).items():
+    payload = body.model_dump(exclude_unset=True)
+    if "name" in payload and payload["name"] is not None:
+        normalized_name = payload["name"].strip()
+        if not normalized_name:
+            raise HTTPException(400, "Experiment name cannot be empty")
+        exists = (
+            db.query(Experiment.id)
+            .filter(
+                Experiment.project_id == project_id,
+                Experiment.id != experiment_id,
+                func.lower(Experiment.name) == normalized_name.lower(),
+            )
+            .first()
+        )
+        if exists:
+            raise HTTPException(409, "Experiment template name already exists in this project")
+        payload["name"] = normalized_name
+
+    for field, value in payload.items():
         setattr(experiment, field, value)
     db.commit()
     db.refresh(experiment)

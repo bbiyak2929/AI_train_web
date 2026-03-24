@@ -11,9 +11,9 @@ import {
 } from '@mui/material';
 import {
     ArrowBack, Stop, Refresh, Download, Search,
-    InsertDriveFile, Terminal,
+    InsertDriveFile, Terminal, Delete, Replay,
 } from '@mui/icons-material';
-import { runsAPI, artifactsAPI } from '../api/client';
+import { runsAPI, artifactsAPI, logsAPI } from '../api/client';
 import RunStatusBadge from '../components/RunStatusBadge';
 import type { Run, Artifact } from '../types';
 
@@ -26,8 +26,21 @@ export default function RunDetailPage() {
     const [tab, setTab] = useState(0);
     const [loading, setLoading] = useState(true);
     const [logFilter, setLogFilter] = useState('');
+    const [logsLoaded, setLogsLoaded] = useState(false);
     const logEndRef = useRef<HTMLDivElement>(null);
     const wsRef = useRef<WebSocket | null>(null);
+
+    const fetchLogHistory = async () => {
+        if (!runId) return;
+        try {
+            const res = await logsAPI.history(runId, 1500);
+            setLogs(Array.isArray(res.data?.logs) ? res.data.logs : []);
+        } catch (err) {
+            console.error(err);
+        } finally {
+            setLogsLoaded(true);
+        }
+    };
 
     const fetchData = async () => {
         if (!projectId || !runId) return;
@@ -46,6 +59,10 @@ export default function RunDetailPage() {
 
     useEffect(() => {
         if (!runId) return;
+        setLogs([]);
+        setLogsLoaded(false);
+        fetchLogHistory();
+
         const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
         const ws = new WebSocket(`${protocol}//${window.location.host}/ws/logs/${runId}`);
         wsRef.current = ws;
@@ -69,6 +86,27 @@ export default function RunDetailPage() {
             await runsAPI.stop(projectId, runId);
             fetchData();
         } catch (err) { console.error(err); }
+    };
+
+    const handleRetry = async () => {
+        if (!projectId || !runId) return;
+        try {
+            const res = await runsAPI.retry(projectId, runId);
+            navigate(`/projects/${projectId}/runs/${res.data.id}`);
+        } catch (err) {
+            console.error(err);
+        }
+    };
+
+    const handleDeleteRun = async () => {
+        if (!projectId || !runId) return;
+        if (!window.confirm('이 실행 기록을 삭제할까요?')) return;
+        try {
+            await runsAPI.delete(projectId, runId);
+            navigate(`/projects/${projectId}`);
+        } catch (err) {
+            console.error(err);
+        }
     };
 
     const formatTime = (t?: string) => {
@@ -133,6 +171,15 @@ export default function RunDetailPage() {
                         중지
                     </Button>
                 )}
+                {['failed', 'stopped', 'timeout'].includes(run.status) && (
+                    <Button variant="contained" startIcon={<Replay />} onClick={handleRetry}
+                        sx={{ background: 'linear-gradient(135deg, #6C63FF, #00D9FF)' }}>
+                        재학습
+                    </Button>
+                )}
+                <Button variant="text" color="error" startIcon={<Delete />} onClick={handleDeleteRun}>
+                    실행기록 삭제
+                </Button>
                 <IconButton onClick={fetchData} sx={{ color: 'text.secondary' }}>
                     <Refresh />
                 </IconButton>
@@ -231,7 +278,7 @@ export default function RunDetailPage() {
                                 <Box sx={{ textAlign: 'center', py: 4 }}>
                                     <Terminal sx={{ fontSize: 40, color: '#374151', mb: 1 }} />
                                     <Typography color="text.secondary" variant="body2">
-                                        {isActive ? '로그를 기다리는 중...' : '로그가 없습니다'}
+                                        {!logsLoaded ? '기존 로그 불러오는 중...' : (isActive ? '로그를 기다리는 중...' : '로그가 없습니다')}
                                     </Typography>
                                 </Box>
                             ) : (

@@ -89,6 +89,15 @@ export const runsAPI = {
         api.post(`/projects/${projectId}/runs/`, data),
     stop: (projectId: string, id: string) =>
         api.post(`/projects/${projectId}/runs/${id}/stop`),
+    retry: (projectId: string, id: string) =>
+        api.post(`/projects/${projectId}/runs/${id}/retry`),
+    delete: (projectId: string, id: string) =>
+        api.delete(`/projects/${projectId}/runs/${id}`),
+};
+
+export const logsAPI = {
+    history: (runId: string, limit = 1000) =>
+        api.get(`/runs/${runId}/logs`, { params: { limit } }),
 };
 
 // ── Servers API ──────────────────────────────
@@ -130,6 +139,24 @@ export const filesAPI = {
             headers: { 'Content-Type': 'multipart/form-data' },
         });
     },
+    uploadFolder: (projectId: string, zipFile: File, path = '') => {
+        const formData = new FormData();
+        formData.append('file', zipFile);
+        return api.post(`/projects/${projectId}/files/upload-folder`, formData, {
+            params: { path },
+            headers: { 'Content-Type': 'multipart/form-data' },
+        });
+    },
+    uploadWithPaths: (projectId: string, files: File[], paths: string[]) => {
+        const formData = new FormData();
+        files.forEach((f) => formData.append('files', f));
+        return api.post(`/projects/${projectId}/files/upload-with-path`, formData, {
+            params: { paths: paths.join(',') },
+            headers: { 'Content-Type': 'multipart/form-data' },
+        });
+    },
+    rename: (projectId: string, key: string, newName: string) =>
+        api.post(`/projects/${projectId}/files/rename`, null, { params: { key, new_name: newName } }),
     delete: (projectId: string, key: string) =>
         api.delete(`/projects/${projectId}/files/`, { params: { key } }),
     downloadUrl: (projectId: string, key: string) =>

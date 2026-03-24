@@ -3,6 +3,9 @@ Celery tasks — Run 스케줄링, 중지, 모니터링 (SSH Agentless 방식)
 """
 import logging
 import json
+import io
+import zipfile
+import posixpath
 from datetime import datetime
 import paramiko
 import redis
@@ -13,6 +16,7 @@ from celery import shared_task
 from sqlalchemy.orm import Session
 
 from app.database import SessionLocal
+from app import models  # Import all models for SQLAlchemy relationship initialization
 from app.models.run import Run, RunStatus
 from app.models.server import Server, ServerStatus
 from app.models.user import User
@@ -61,60 +65,137 @@ def _get_s3():
     )
 
 
-def _download_project_files(ssh, project_id: str, run_id: str) -> str | None:
+def _exec_ssh_wait(ssh, cmd: str) -> tuple:
+    """SSH 명령 실행 후 완료까지 대기합니다."""
+    stdin, stdout, stderr = ssh.exec_command(cmd)
+    exit_status = stdout.channel.recv_exit_status()
+    return stdout.read().decode("utf-8"), stderr.read().decode("utf-8"), exit_status
+
+
+def _is_ssh_reachable(server: Server, timeout: int = 5) -> bool:
+    """서버 SSH 접속 가능 여부를 빠르게 확인합니다."""
+    if not (server and server.ssh_host and server.ssh_user and server.ssh_password):
+        return False
+
+    probe = paramiko.SSHClient()
+    probe.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+    try:
+        probe.connect(
+            hostname=server.ssh_host,
+            port=server.ssh_port,
+            username=server.ssh_user,
+            password=server.ssh_password,
+            timeout=timeout,
+        )
+        return True
+    except Exception as e:
+        logger.warning(f"Server {server.name} SSH probe failed: {e}")
+        return False
+    finally:
+        try:
+            probe.close()
+        except Exception:
+            pass
+
+
+def _download_project_files(ssh, project_id: str, run_id: str, selected_files: list | None = None) -> str | None:
     """
     MinIO에서 프로젝트 파일 목록을 조회하고, 원격 서버에 다운로드합니다.
+    selected_files가 지정되면 해당 key의 파일만 다운로드합니다.
     다운로드된 경로를 반환합니다 (파일이 없으면 None).
     """
     s3 = _get_s3()
     prefix = f"projects/{project_id}/files/"
 
     try:
-        response = s3.list_objects_v2(
-            Bucket=settings.MINIO_BUCKET_NAME,
-            Prefix=prefix,
-        )
+        # 페이지네이션 처리 (1000개 이상 파일 지원)
+        objects = []
+        paginator = s3.get_paginator("list_objects_v2")
+        for page in paginator.paginate(Bucket=settings.MINIO_BUCKET_NAME, Prefix=prefix):
+            objects.extend(page.get("Contents", []))
     except ClientError:
         logger.warning(f"Failed to list files from MinIO for project {project_id}")
         return None
 
-    objects = response.get("Contents", [])
     if not objects:
         return None
 
+    # 선택된 파일만 필터링
+    if selected_files:
+        selected_set = set(selected_files)
+        objects = [obj for obj in objects if obj["Key"] in selected_set]
+        if not objects:
+            return None
+
     remote_dir = f"/tmp/aitrain/{run_id}/data"
 
-    # 리모트 디렉토리 생성
-    ssh.exec_command(f"mkdir -p {remote_dir}")
+    # 리모트 디렉토리 생성 (완료 대기)
+    _exec_ssh_wait(ssh, f"mkdir -p {remote_dir}")
 
-    for obj in objects:
-        key = obj["Key"]
-        rel_path = key[len(prefix):]
-        if not rel_path:
-            continue
+    sftp = ssh.open_sftp()
+    try:
+        for obj in objects:
+            key = obj["Key"]
+            rel_path = key[len(prefix):]
+            if not rel_path:
+                continue
 
-        # MinIO에서 파일 데이터 가져오기
-        try:
-            file_obj = s3.get_object(Bucket=settings.MINIO_BUCKET_NAME, Key=key)
-            file_data = file_obj["Body"].read()
-        except ClientError:
-            logger.warning(f"Failed to download {key} from MinIO")
-            continue
+            # MinIO에서 파일 데이터 가져오기
+            try:
+                file_obj = s3.get_object(Bucket=settings.MINIO_BUCKET_NAME, Key=key)
+                file_data = file_obj["Body"].read()
+            except ClientError:
+                logger.warning(f"Failed to download {key} from MinIO")
+                continue
 
-        # 원격 서버에 디렉터리 생성 후 파일 전송
-        remote_path = f"{remote_dir}/{rel_path}"
-        remote_subdir = "/".join(remote_path.split("/")[:-1])
-        ssh.exec_command(f"mkdir -p {remote_subdir}")
+            # 원격 서버에 디렉터리 생성 후 파일 전송
+            remote_path = f"{remote_dir}/{rel_path}"
+            remote_subdir = "/".join(remote_path.split("/")[:-1])
+            _exec_ssh_wait(ssh, f"mkdir -p {remote_subdir}")
 
-        # SFTP로 파일 전송
-        sftp = ssh.open_sftp()
-        try:
             with sftp.file(remote_path, "wb") as f:
                 f.write(file_data)
-        finally:
-            sftp.close()
 
-        logger.info(f"Uploaded {key} -> {remote_path}")
+            logger.info(f"Uploaded {key} -> {remote_path}")
+
+            # ZIP 파일은 원격 데이터 디렉터리로 자동 압축 해제합니다.
+            if rel_path.lower().endswith(".zip"):
+                try:
+                    zf = zipfile.ZipFile(io.BytesIO(file_data))
+                    extracted_count = 0
+                    for member in zf.infolist():
+                        if member.is_dir():
+                            continue
+
+                        member_path = member.filename.replace("\\", "/")
+                        normalized = posixpath.normpath(member_path)
+                        if normalized.startswith("../") or normalized.startswith("/"):
+                            continue
+
+                        target_path = f"{remote_dir}/{normalized}"
+                        target_subdir = "/".join(target_path.split("/")[:-1])
+                        _exec_ssh_wait(ssh, f"mkdir -p {target_subdir}")
+
+                        with sftp.file(target_path, "wb") as ef:
+                            ef.write(zf.read(member))
+                        extracted_count += 1
+
+                    logger.info(f"Extracted {extracted_count} files from {key}")
+                except Exception as e:
+                    logger.warning(f"Failed to extract zip {key}: {e}")
+
+        # data.yaml이 하위 폴더에만 있는 경우 루트로 복사하여 기본 경로를 보장합니다.
+        _exec_ssh_wait(
+            ssh,
+            (
+                f"if [ ! -f {remote_dir}/data.yaml ]; then "
+                f"found=$(find {remote_dir} -type f -name data.yaml | head -n 1); "
+                f"if [ -n \"$found\" ]; then cp \"$found\" {remote_dir}/data.yaml; fi; "
+                f"fi"
+            )
+        )
+    finally:
+        sftp.close()
 
     return remote_dir
 
@@ -133,13 +214,55 @@ def schedule_run(self, run_id: str):
         if run.status != RunStatus.QUEUED:
             return
 
-        # 자동 서버 선택 지원안함 (웹 UI에서 선택 필수)
+        # 서버 미지정 시 자동 선택 (ONLINE + SSH 접속 가능 서버 우선)
         if not run.server_id:
-            logger.error("Auto server selection not implemented yet")
-            run.status = RunStatus.FAILED
-            run.error_message = "No server_id provided"
+            online_candidates = (
+                db.query(Server)
+                .filter(
+                    Server.status == ServerStatus.ONLINE,
+                    Server.ssh_host.isnot(None),
+                    Server.ssh_user.isnot(None),
+                    Server.ssh_password.isnot(None),
+                )
+                .order_by(Server.updated_at.desc())
+                .all()
+            )
+
+            candidate = None
+            for srv in online_candidates:
+                if _is_ssh_reachable(srv):
+                    candidate = srv
+                    break
+                srv.status = ServerStatus.OFFLINE
+            if online_candidates:
+                db.commit()
+
+            # ONLINE 접속 가능 서버가 없으면, 전체 서버 중 SSH 접속 가능 서버로 폴백
+            if candidate is None:
+                all_candidates = (
+                    db.query(Server)
+                    .filter(
+                        Server.ssh_host.isnot(None),
+                        Server.ssh_user.isnot(None),
+                        Server.ssh_password.isnot(None),
+                    )
+                    .order_by(Server.updated_at.desc())
+                    .all()
+                )
+                for srv in all_candidates:
+                    if _is_ssh_reachable(srv):
+                        candidate = srv
+                        break
+
+            if not candidate:
+                run.status = RunStatus.FAILED
+                run.error_message = "No available server for auto selection"
+                db.commit()
+                return
+
+            run.server_id = candidate.id
             db.commit()
-            return
+            logger.info(f"Auto-selected server {candidate.name} ({candidate.id}) for run {run_id}")
 
         server = db.query(Server).filter(Server.id == run.server_id).first()
         if not server or not server.ssh_host:
@@ -172,11 +295,31 @@ def schedule_run(self, run_id: str):
             )
 
             # 먼저 동일한 이름의 컨테이너가 있으면 삭제
-            ssh.exec_command(f"docker rm -f {container_name}")
+            _exec_ssh_wait(ssh, f"docker rm -f {container_name}")
 
-            # 프로젝트 파일 다운로드 (데이터셋/모델 등)
-            data_dir = _download_project_files(ssh, str(run.project_id), run_id)
-            volume_flag = f"-v {data_dir}:/workspace/data" if data_dir else ""
+            # 데이터 소스 타입에 따라 볼륨 마운트 결정
+            mount_path = run.container_mount_path or "/workspace/data"
+            volume_flag = ""
+
+            data_source = run.data_source_type or "project_files"
+
+            if data_source == "remote_path" and run.remote_data_path:
+                # 원격 서버에 이미 존재하는 데이터 경로를 직접 마운트
+                remote_path = run.remote_data_path.strip()
+                # 경로 존재 여부 확인
+                out, err, exit_code = _exec_ssh_wait(ssh, f"test -d {remote_path} && echo EXISTS")
+                if "EXISTS" not in out:
+                    raise Exception(f"Remote data path does not exist: {remote_path}")
+                volume_flag = f"-v {remote_path}:{mount_path}"
+                logger.info(f"Using remote data path: {remote_path} -> {mount_path}")
+
+            elif data_source == "project_files":
+                # MinIO에서 프로젝트 파일 다운로드 후 마운트
+                data_dir = _download_project_files(ssh, str(run.project_id), run_id, run.selected_files)
+                if data_dir:
+                    volume_flag = f"-v {data_dir}:{mount_path}"
+
+            # data_source == "none" 이면 볼륨 마운트 없음
 
             cmd = f"docker run -d --name {container_name} {gpu_flag} {volume_flag} {env_str} {run.docker_image} {run.command}"
             logger.info(f"Executing: {cmd} on {server.name}")
@@ -198,6 +341,9 @@ def schedule_run(self, run_id: str):
 
         except Exception as e:
             logger.error(f"Failed to start run {run_id} via SSH: {e}")
+            # SSH 연결 실패 시 서버 상태를 OFFLINE으로 내려 재시도에서 제외합니다.
+            if server:
+                server.status = ServerStatus.OFFLINE
             run.status = RunStatus.QUEUED
             run.retry_count += 1
             db.commit()
@@ -215,6 +361,12 @@ def stream_logs_task(run_id: str, server_id: str, container_name: str):
     """지정된 장기 실행 SSH 세션을 열어 로그를 Redis에 Pub 합니다."""
     redis_client = redis.from_url(settings.REDIS_URL, decode_responses=True)
     channel = f"logs:{run_id}"
+    history_key = f"logs_history:{run_id}"
+
+    def _publish_and_store(message: str):
+        redis_client.publish(channel, message)
+        redis_client.rpush(history_key, message)
+        redis_client.ltrim(history_key, -5000, -1)
 
     # DB 조회만 하고 커넥션은 닫음
     db = _get_db()
@@ -241,20 +393,20 @@ def stream_logs_task(run_id: str, server_id: str, container_name: str):
             password=ssh_password,
             timeout=10
         )
-        redis_client.publish(channel, "[SYSTEM] Connected to server for log streaming...\\n")
+        _publish_and_store("[SYSTEM] Connected to server for log streaming...\\n")
 
-        # docker logs -f 를 실행하여 stdout을 지속적으로 읽음
-        stdin, stdout, stderr = ssh.exec_command(f"docker logs -f {container_name}", get_pty=True)
+        # 이미 저장된 로그는 history API로 제공하므로, WebSocket은 신규 라인만 스트리밍
+        stdin, stdout, stderr = ssh.exec_command(f"docker logs --tail 0 -f {container_name}", get_pty=True)
 
         # stdout.readline() blocks until a line is printed or the stream is closed
         for line in iter(stdout.readline, ""):
-            redis_client.publish(channel, line)
+            _publish_and_store(line)
 
-        redis_client.publish(channel, "\\n[SYSTEM] Log stream ended.\\n")
+        _publish_and_store("\\n[SYSTEM] Log stream ended.\\n")
         ssh.close()
     except Exception as e:
         logger.error(f"Log streaming failed for run {run_id}: {e}")
-        redis_client.publish(channel, f"\\n[SYSTEM ERROR] Log stream disconnected: {e}\\n")
+        _publish_and_store(f"\\n[SYSTEM ERROR] Log stream disconnected: {e}\\n")
 
 
 @shared_task(name="app.worker.tasks.stop_run_task")

@@ -67,7 +67,10 @@ export default function Layout({ user, onLogout, onUserUpdate }: LayoutProps) {
     const drawer = (
         <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
             {/* Logo */}
-            <Box sx={{ p: 2.5, display: 'flex', alignItems: 'center', gap: 1.5 }}>
+            <Box
+                onClick={() => navigate('/')}
+                sx={{ p: 2.5, display: 'flex', alignItems: 'center', gap: 1.5, cursor: 'pointer' }}
+            >
                 <Box
                     sx={{
                         width: 40, height: 40, borderRadius: 2,
@@ -86,7 +89,7 @@ export default function Layout({ user, onLogout, onUserUpdate }: LayoutProps) {
                     </Typography>
                 </Box>
                 <Tooltip title={isDark ? '라이트 모드' : '다크 모드'}>
-                    <IconButton onClick={toggleTheme} size="small" sx={{ color: isDark ? '#FFB74D' : '#6C63FF' }}>
+                    <IconButton onClick={(e) => { e.stopPropagation(); toggleTheme(); }} size="small" sx={{ color: isDark ? '#FFB74D' : '#6C63FF' }}>
                         {isDark ? <LightModeIcon fontSize="small" /> : <DarkModeIcon fontSize="small" />}
                     </IconButton>
                 </Tooltip>
@@ -185,7 +188,13 @@ export default function Layout({ user, onLogout, onUserUpdate }: LayoutProps) {
                         <MenuIcon />
                     </IconButton>
                     <Typography variant="h6" noWrap sx={{ fontWeight: 700 }}>
-                        AI Training
+                        <Box
+                            component="span"
+                            onClick={() => { navigate('/'); setMobileOpen(false); }}
+                            sx={{ cursor: 'pointer' }}
+                        >
+                            AI Training Home
+                        </Box>
                     </Typography>
                 </Toolbar>
             </AppBar>
