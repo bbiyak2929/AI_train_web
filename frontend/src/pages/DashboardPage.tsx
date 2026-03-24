@@ -6,12 +6,14 @@ import { useNavigate } from 'react-router-dom';
 import {
     Box, Grid, Typography, Card, CardContent, Skeleton,
     Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
-    Paper, alpha, Chip, Button,
+    Paper, alpha, Chip, Button, Dialog, DialogTitle, DialogContent,
+    IconButton, CircularProgress, Tooltip,
 } from '@mui/material';
 import {
     Dns as ServerIcon, PlayArrow as RunIcon,
     CheckCircle as SuccessIcon, Error as ErrorIcon,
     HourglassEmpty as QueuedIcon, TrendingUp as TrendingIcon,
+    Close as CloseIcon, OpenInNew as OpenIcon,
 } from '@mui/icons-material';
 import { dashboardAPI, serversAPI } from '../api/client';
 import ServerCard from '../components/ServerCard';
@@ -25,6 +27,12 @@ export default function DashboardPage() {
     const [failedRuns, setFailedRuns] = useState<RunListItem[]>([]);
     const [loading, setLoading] = useState(true);
     const navigate = useNavigate();
+
+    // Stat card dialog
+    const [dialogOpen, setDialogOpen] = useState(false);
+    const [dialogTitle, setDialogTitle] = useState('');
+    const [dialogRuns, setDialogRuns] = useState<RunListItem[]>([]);
+    const [dialogLoading, setDialogLoading] = useState(false);
 
     useEffect(() => {
         const fetch = async () => {
@@ -47,11 +55,25 @@ export default function DashboardPage() {
         fetch();
     }, []);
 
+    const openStatDialog = async (title: string, statusFilter: string) => {
+        setDialogTitle(title);
+        setDialogOpen(true);
+        setDialogLoading(true);
+        setDialogRuns([]);
+        try {
+            const res = await dashboardAPI.runsByStatus(statusFilter, 20);
+            setDialogRuns(res.data);
+        } catch (err) {
+            console.error(err);
+        }
+        setDialogLoading(false);
+    };
+
     const statCards = stats ? [
-        { label: '전체 서버', value: stats.total_servers, icon: <ServerIcon />, color: '#6C63FF', sub: `${stats.online_servers} 온라인` },
-        { label: '실행 중', value: stats.running_runs, icon: <RunIcon />, color: '#00D9FF', sub: `${stats.queued_runs} 대기 중` },
-        { label: '성공', value: stats.success_runs, icon: <SuccessIcon />, color: '#00E676', sub: `총 ${stats.total_runs} runs` },
-        { label: '실패', value: stats.failed_runs, icon: <ErrorIcon />, color: '#FF5252', sub: '주의 필요' },
+        { label: '전체 서버', value: stats.total_servers, icon: <ServerIcon />, color: '#6C63FF', sub: `${stats.online_servers} 온라인`, onClick: () => navigate('/servers') },
+        { label: '실행 중', value: stats.running_runs, icon: <RunIcon />, color: '#00D9FF', sub: `${stats.queued_runs} 대기 중`, onClick: () => openStatDialog('실행 중 / 대기 중', 'running,queued,scheduled') },
+        { label: '성공', value: stats.success_runs, icon: <SuccessIcon />, color: '#00E676', sub: `총 ${stats.total_runs} runs`, onClick: () => openStatDialog('성공한 실행', 'success') },
+        { label: '실패', value: stats.failed_runs, icon: <ErrorIcon />, color: '#FF5252', sub: '주의 필요', onClick: () => openStatDialog('실패한 실행', 'failed,timeout,stopped') },
     ] : [];
 
     const formatTime = (t?: string) => {
@@ -105,14 +127,22 @@ export default function DashboardPage() {
                 <Typography variant="h4" sx={{ fontWeight: 800, color: 'text.primary', mb: 0.8, position: 'relative', zIndex: 1 }}>
                     AI Training Control Center
                 </Typography>
-                <Typography variant="body1" sx={{ color: 'text.secondary', maxWidth: 760, position: 'relative', zIndex: 1 }}>
-                    프로젝트, 실험 템플릿, 서버 상태를 한 화면에서 관리하고 바로 학습을 실행하세요.
-                    모델 선택부터 실행 추적까지 빠르게 이어지는 홈입니다.
-                </Typography>
                 <Box sx={{ mt: 2, display: 'flex', gap: 1, flexWrap: 'wrap', position: 'relative', zIndex: 1 }}>
                     <Button variant="contained" onClick={() => navigate('/projects')}>프로젝트 바로가기</Button>
                     <Button variant="outlined" onClick={() => navigate('/servers')}>서버 보러가기</Button>
-                    <Chip icon={<RunIcon />} label="실시간 실행 모니터링" size="small" sx={{ height: 30 }} />
+                    {stats && stats.running_runs > 0 && (
+                        <Chip
+                            icon={<Box sx={{
+                                width: 8, height: 8, borderRadius: '50%', backgroundColor: '#00E676', ml: 1,
+                                animation: 'blink 1s infinite',
+                                '@keyframes blink': { '0%, 100%': { opacity: 1 }, '50%': { opacity: 0.3 } },
+                            }} />}
+                            label={`${stats.running_runs}개 실행 중`}
+                            size="small"
+                            onClick={() => openStatDialog('실행 중 / 대기 중', 'running,queued,scheduled')}
+                            sx={{ height: 30, cursor: 'pointer', '&:hover': { backgroundColor: alpha('#00E676', 0.15) } }}
+                        />
+                    )}
                 </Box>
             </Box>
 
@@ -128,12 +158,14 @@ export default function DashboardPage() {
                     statCards.map((s, i) => (
                         <Grid item xs={6} md={3} key={i}>
                             <Card sx={{
-                                position: 'relative', overflow: 'hidden',
+                                position: 'relative', overflow: 'hidden', cursor: 'pointer',
+                                transition: 'all 0.2s',
+                                '&:hover': { transform: 'translateY(-2px)', boxShadow: `0 8px 24px ${alpha(s.color, 0.2)}` },
                                 '&::before': {
                                     content: '""', position: 'absolute', top: 0, left: 0, right: 0, height: 3,
                                     background: `linear-gradient(90deg, ${s.color}, ${alpha(s.color, 0.3)})`,
                                 },
-                            }}>
+                            }} onClick={s.onClick}>
                                 <CardContent sx={{ p: 2.5 }}>
                                     <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                                         <Box>
@@ -180,106 +212,122 @@ export default function DashboardPage() {
                         </CardContent></Card>
                     </Grid>
                 ) : (
-                    servers.map((s) => (
-                        <Grid item xs={12} sm={6} md={4} key={s.id}>
-                            <ServerCard server={s} onClick={() => navigate(`/servers`)} />
+                    <>
+                        {servers.map((s) => (
+                            <Grid item xs={12} sm={6} md={4} key={s.id}>
+                                <ServerCard server={s} onClick={() => navigate(`/servers`)} />
+                            </Grid>
+                        ))}
+                        <Grid item xs={12} sm={6} md={4}>
+                            <Card
+                                onClick={() => navigate('/servers')}
+                                sx={{
+                                    height: '100%', minHeight: 140, cursor: 'pointer',
+                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                    border: (theme) => `2px dashed ${alpha(theme.palette.divider, 0.3)}`,
+                                    backgroundColor: 'transparent',
+                                    transition: 'all 0.2s',
+                                    '&:hover': {
+                                        borderColor: '#6C63FF',
+                                        backgroundColor: alpha('#6C63FF', 0.04),
+                                    },
+                                }}
+                            >
+                                <Box sx={{ textAlign: 'center' }}>
+                                    <ServerIcon sx={{ fontSize: 36, color: 'text.disabled', mb: 1 }} />
+                                    <Typography variant="body2" sx={{ color: 'text.secondary', fontWeight: 600 }}>
+                                        + 서버 추가
+                                    </Typography>
+                                </Box>
+                            </Card>
                         </Grid>
-                    ))
+                    </>
                 )}
             </Grid>
 
-            {/* Recent Runs Table */}
-            <Grid container spacing={2.5}>
-                <Grid item xs={12} md={7}>
+            {/* Recent & Failed Runs */}
+            <Grid container spacing={2.5} sx={{ alignItems: 'stretch' }}>
+                <Grid item xs={12} md={6} sx={{ display: 'flex', flexDirection: 'column' }}>
                     <Typography variant="h6" sx={{ fontWeight: 700, color: 'text.primary', mb: 2 }}>
                         🚀 최근 실행
                     </Typography>
-                    <TableContainer component={Paper} sx={{ backgroundColor: (theme) => alpha(theme.palette.background.paper, 0.8), backdropFilter: 'blur(20px)' }}>
-                        <Table size="small">
-                            <TableHead>
-                                <TableRow>
-                                    <TableCell>이름</TableCell>
-                                    <TableCell>상태</TableCell>
-                                    <TableCell>시간</TableCell>
-                                </TableRow>
-                            </TableHead>
-                            <TableBody>
-                                {loading ? (
-                                    Array.from({ length: 3 }).map((_, i) => (
-                                        <TableRow key={i}>
-                                            <TableCell><Skeleton width={120} /></TableCell>
-                                            <TableCell><Skeleton width={80} /></TableCell>
-                                            <TableCell><Skeleton width={100} /></TableCell>
-                                        </TableRow>
-                                    ))
-                                ) : recentRuns.length === 0 ? (
-                                    <TableRow>
-                                        <TableCell colSpan={3} sx={{ textAlign: 'center', py: 3 }}>
-                                            <Typography color="text.secondary" variant="body2">실행 기록이 없습니다</Typography>
-                                        </TableCell>
-                                    </TableRow>
-                                ) : (
-                                    recentRuns.map((run) => (
-                                        <TableRow key={run.id} hover sx={{ cursor: 'pointer' }}
-                                            onClick={() => navigate(`/projects/${run.project_id}/runs/${run.id}`)}
-                                        >
-                                            <TableCell>
-                                                <Typography variant="body2" sx={{ fontWeight: 500 }}>
-                                                    {run.name || run.id.slice(0, 8)}
-                                                </Typography>
-                                            </TableCell>
-                                            <TableCell>
-                                                <RunStatusBadge status={run.status} />
-                                            </TableCell>
-                                            <TableCell>
-                                                <Typography variant="caption" sx={{ color: 'text.secondary' }}>
-                                                    {formatTime(run.created_at)}
-                                                </Typography>
-                                            </TableCell>
-                                        </TableRow>
-                                    ))
-                                )}
-                            </TableBody>
-                        </Table>
-                    </TableContainer>
-                </Grid>
-
-                {/* Failed Runs */}
-                <Grid item xs={12} md={5}>
-                    <Typography variant="h6" sx={{ fontWeight: 700, color: 'text.primary', mb: 2 }}>
-                        ⚠️ 실패한 실행
-                    </Typography>
-                    <Card>
-                        <CardContent>
+                    <Card sx={{ flex: 1 }}>
+                        <CardContent sx={{ p: 0, '&:last-child': { pb: 0 } }}>
                             {loading ? (
-                                Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} height={40} sx={{ mb: 1 }} />)
-                            ) : failedRuns.length === 0 ? (
-                                <Box sx={{ textAlign: 'center', py: 3 }}>
-                                    <SuccessIcon sx={{ fontSize: 40, color: '#00E676', mb: 1 }} />
-                                    <Typography color="text.secondary" variant="body2">실패한 실행이 없습니다 🎉</Typography>
+                                <Box sx={{ p: 2 }}>
+                                    {Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} height={44} sx={{ mb: 0.5 }} />)}
+                                </Box>
+                            ) : recentRuns.length === 0 ? (
+                                <Box sx={{ textAlign: 'center', py: 6 }}>
+                                    <RunIcon sx={{ fontSize: 40, color: 'text.disabled', mb: 1 }} />
+                                    <Typography color="text.secondary" variant="body2">실행 기록이 없습니다</Typography>
                                 </Box>
                             ) : (
-                                failedRuns.map((run) => (
+                                recentRuns.map((run, i) => (
                                     <Box key={run.id}
                                         onClick={() => navigate(`/projects/${run.project_id}/runs/${run.id}`)}
                                         sx={{
                                             display: 'flex', alignItems: 'center', gap: 1.5,
-                                            p: 1.5, mb: 1, borderRadius: 2, cursor: 'pointer',
-                                            backgroundColor: alpha('#FF5252', 0.05),
-                                            border: `1px solid ${alpha('#FF5252', 0.1)}`,
-                                            '&:hover': { backgroundColor: alpha('#FF5252', 0.1) },
-                                            transition: 'all 0.2s',
+                                            px: 2.5, py: 1.5, cursor: 'pointer',
+                                            borderBottom: i < recentRuns.length - 1 ? (theme: any) => `1px solid ${alpha(theme.palette.divider, 0.06)}` : 'none',
+                                            '&:hover': { backgroundColor: (theme: any) => alpha(theme.palette.primary.main, 0.04) },
+                                            transition: 'background-color 0.15s',
                                         }}
                                     >
-                                        <ErrorIcon sx={{ color: '#FF5252', fontSize: 20 }} />
-                                        <Box sx={{ flex: 1 }}>
-                                            <Typography variant="body2" sx={{ fontWeight: 500 }}>
+                                        <Box sx={{ flex: 1, minWidth: 0 }}>
+                                            <Typography variant="body2" sx={{ fontWeight: 500 }} noWrap>
                                                 {run.name || run.id.slice(0, 8)}
                                             </Typography>
                                             <Typography variant="caption" sx={{ color: 'text.secondary' }}>
                                                 {formatTime(run.created_at)}
                                             </Typography>
                                         </Box>
+                                        <RunStatusBadge status={run.status} />
+                                    </Box>
+                                ))
+                            )}
+                        </CardContent>
+                    </Card>
+                </Grid>
+
+                {/* Failed Runs */}
+                <Grid item xs={12} md={6} sx={{ display: 'flex', flexDirection: 'column' }}>
+                    <Typography variant="h6" sx={{ fontWeight: 700, color: 'text.primary', mb: 2 }}>
+                        ⚠️ 실패한 실행
+                    </Typography>
+                    <Card sx={{ flex: 1 }}>
+                        <CardContent sx={{ p: 0, '&:last-child': { pb: 0 } }}>
+                            {loading ? (
+                                <Box sx={{ p: 2 }}>
+                                    {Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} height={44} sx={{ mb: 0.5 }} />)}
+                                </Box>
+                            ) : failedRuns.length === 0 ? (
+                                <Box sx={{ textAlign: 'center', py: 6 }}>
+                                    <SuccessIcon sx={{ fontSize: 40, color: '#00E676', mb: 1 }} />
+                                    <Typography color="text.secondary" variant="body2">실패한 실행이 없습니다</Typography>
+                                </Box>
+                            ) : (
+                                failedRuns.map((run, i) => (
+                                    <Box key={run.id}
+                                        onClick={() => navigate(`/projects/${run.project_id}/runs/${run.id}`)}
+                                        sx={{
+                                            display: 'flex', alignItems: 'center', gap: 1.5,
+                                            px: 2.5, py: 1.5, cursor: 'pointer',
+                                            borderBottom: i < failedRuns.length - 1 ? (theme: any) => `1px solid ${alpha(theme.palette.divider, 0.06)}` : 'none',
+                                            '&:hover': { backgroundColor: alpha('#FF5252', 0.06) },
+                                            transition: 'background-color 0.15s',
+                                        }}
+                                    >
+                                        <ErrorIcon sx={{ color: '#FF5252', fontSize: 20 }} />
+                                        <Box sx={{ flex: 1, minWidth: 0 }}>
+                                            <Typography variant="body2" sx={{ fontWeight: 500 }} noWrap>
+                                                {run.name || run.id.slice(0, 8)}
+                                            </Typography>
+                                            <Typography variant="caption" sx={{ color: 'text.secondary' }}>
+                                                {formatTime(run.created_at)}
+                                            </Typography>
+                                        </Box>
+                                        <RunStatusBadge status={run.status} />
                                     </Box>
                                 ))
                             )}
@@ -287,6 +335,86 @@ export default function DashboardPage() {
                     </Card>
                 </Grid>
             </Grid>
+
+            {/* Stat Card Detail Dialog */}
+            <Dialog open={dialogOpen} onClose={() => setDialogOpen(false)} maxWidth="sm" fullWidth
+                PaperProps={{
+                    sx: {
+                        borderRadius: 4, backgroundImage: 'none',
+                        border: (theme) => `1px solid ${alpha(theme.palette.divider, 0.08)}`,
+                        boxShadow: '0 24px 48px rgba(0,0,0,0.25)',
+                    },
+                }}
+            >
+                <DialogTitle sx={{
+                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                    px: 3.5, pt: 3, pb: 1,
+                }}>
+                    <Box>
+                        <Typography variant="h6" sx={{ fontWeight: 700 }}>{dialogTitle}</Typography>
+                        <Typography variant="caption" sx={{ color: 'text.secondary' }}>
+                            {dialogLoading ? '불러오는 중...' : `${dialogRuns.length}개의 실행`}
+                        </Typography>
+                    </Box>
+                    <IconButton size="small" onClick={() => setDialogOpen(false)}
+                        sx={{ color: 'text.secondary', '&:hover': { backgroundColor: alpha('#fff', 0.08) } }}
+                    >
+                        <CloseIcon fontSize="small" />
+                    </IconButton>
+                </DialogTitle>
+                <DialogContent sx={{ px: 2.5, pb: 3, pt: 1.5 }}>
+                    {dialogLoading ? (
+                        <Box sx={{ display: 'flex', justifyContent: 'center', py: 8 }}>
+                            <CircularProgress sx={{ color: '#6C63FF' }} />
+                        </Box>
+                    ) : dialogRuns.length === 0 ? (
+                        <Box sx={{ textAlign: 'center', py: 8 }}>
+                            <QueuedIcon sx={{ fontSize: 48, color: 'text.disabled', mb: 1.5 }} />
+                            <Typography color="text.secondary">해당하는 실행이 없습니다</Typography>
+                        </Box>
+                    ) : (
+                        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                            {dialogRuns.map((run) => (
+                                <Box key={run.id}
+                                    onClick={() => { setDialogOpen(false); navigate(`/projects/${run.project_id}/runs/${run.id}`); }}
+                                    sx={{
+                                        display: 'flex', alignItems: 'center', gap: 2,
+                                        px: 2.5, py: 2, borderRadius: 2.5, cursor: 'pointer',
+                                        backgroundColor: (theme) => alpha(theme.palette.action.hover, 0.04),
+                                        border: (theme) => `1px solid ${alpha(theme.palette.divider, 0.06)}`,
+                                        transition: 'all 0.2s ease',
+                                        '&:hover': {
+                                            backgroundColor: (theme) => alpha(theme.palette.primary.main, 0.08),
+                                            borderColor: (theme) => alpha(theme.palette.primary.main, 0.2),
+                                            transform: 'translateX(4px)',
+                                        },
+                                    }}
+                                >
+                                    <Box sx={{ flex: 1, minWidth: 0 }}>
+                                        <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.3 }} noWrap>
+                                            {run.name || run.id.slice(0, 8)}
+                                        </Typography>
+                                        <Typography variant="caption" sx={{ color: 'text.secondary' }}>
+                                            {formatTime(run.created_at)}
+                                        </Typography>
+                                    </Box>
+                                    <RunStatusBadge status={run.status} />
+                                    <Tooltip title="로그 보러가기" arrow>
+                                        <IconButton size="small"
+                                            sx={{
+                                                color: 'text.secondary', ml: 0.5,
+                                                '&:hover': { color: '#6C63FF', backgroundColor: alpha('#6C63FF', 0.1) },
+                                            }}
+                                        >
+                                            <OpenIcon sx={{ fontSize: 18 }} />
+                                        </IconButton>
+                                    </Tooltip>
+                                </Box>
+                            ))}
+                        </Box>
+                    )}
+                </DialogContent>
+            </Dialog>
         </Box>
     );
 }

@@ -168,4 +168,6 @@ export const dashboardAPI = {
     stats: () => api.get('/dashboard/stats'),
     recentRuns: (limit = 10) => api.get(`/dashboard/recent-runs?limit=${limit}`),
     failedRuns: (limit = 10) => api.get(`/dashboard/failed-runs?limit=${limit}`),
+    runsByStatus: (status: string, limit = 20) =>
+        api.get(`/dashboard/runs-by-status?status=${encodeURIComponent(status)}&limit=${limit}`),
 };

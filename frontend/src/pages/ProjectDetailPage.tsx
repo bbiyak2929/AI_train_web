@@ -75,7 +75,7 @@ const YOLO_COMMON_PARAMS: ParamDef[] = [
     { key: 'optimizer', label: '옵티마이저', description: '가중치 업데이트 알고리즘 선택', type: 'select', default: 'auto', options: [{ value: 'auto', label: 'Auto' }, { value: 'SGD', label: 'SGD' }, { value: 'Adam', label: 'Adam' }, { value: 'AdamW', label: 'AdamW' }] },
     { key: 'patience', label: 'Early Stopping', description: '검증 성능이 향상되지 않는 에폭 수 후 학습 중단 (0=비활성)', type: 'number', default: 100, min: 0, max: 500, step: 10 },
     { key: 'save_period', label: '저장 주기', description: '체크포인트 저장 에폭 간격 (-1=마지막만)', type: 'number', default: -1, min: -1, max: 100, step: 1 },
-    { key: 'workers', label: '워커 수', description: '데이터 로딩 병렬 워커 수', type: 'number', default: 8, min: 0, max: 32, step: 1 },
+    { key: 'workers', label: '워커 수', description: '데이터 로딩 병렬 워커 수', type: 'number', default: 2, min: 0, max: 32, step: 1 },
     { key: 'device', label: '디바이스', description: '학습에 사용할 GPU 디바이스', type: 'select', default: '0', options: [{ value: '0', label: 'GPU 0' }, { value: '0,1', label: 'GPU 0,1' }, { value: '0,1,2,3', label: 'GPU 0,1,2,3' }, { value: 'cpu', label: 'CPU' }] },
     { key: 'augment', label: '데이터 증강', description: '학습 시 자동 데이터 증강 사용 여부', type: 'boolean', default: true },
     { key: 'cache', label: '데이터 캐시', description: '이미지를 RAM/디스크에 캐시하여 속도 향상', type: 'select', default: 'false', options: [{ value: 'false', label: '비활성' }, { value: 'true', label: 'RAM' }, { value: 'disk', label: 'Disk' }] },
@@ -124,7 +124,7 @@ const EXPERIMENT_PRESETS: ExperimentPreset[] = [
         id: 'yolo26-detect', name: 'YOLO26 객체감지', category: 'Object Detection',
         docker_image: 'ultralytics/ultralytics:latest', entrypoint: 'yolo detect train',
         param_style: 'equals',
-        default_params: { epochs: 100, imgsz: 640, batch: 16, data: '/workspace/data/data.yaml' },
+        default_params: { epochs: 100, imgsz: 640, batch: 16, data: '/workspace/data/data.yaml', workers: 1 },
         params: YOLO_COMMON_PARAMS,
         models: [
             { value: 'yolo26n.pt', label: 'YOLO26n (Nano)', description: '가장 빠르고 경량. 엣지 디바이스/실시간용' },
@@ -139,7 +139,7 @@ const EXPERIMENT_PRESETS: ExperimentPreset[] = [
         id: 'yolo11-detect', name: 'YOLO11 객체감지', category: 'Object Detection',
         docker_image: 'ultralytics/ultralytics:latest', entrypoint: 'yolo detect train',
         param_style: 'equals',
-        default_params: { epochs: 100, imgsz: 640, batch: 16, data: '/workspace/data/data.yaml' },
+        default_params: { epochs: 100, imgsz: 640, batch: 16, data: '/workspace/data/data.yaml', workers: 1 },
         params: YOLO_COMMON_PARAMS,
         models: [
             { value: 'yolo11n.pt', label: 'YOLO11n (Nano)', description: '초경량 실시간 감지' },
@@ -167,7 +167,7 @@ const EXPERIMENT_PRESETS: ExperimentPreset[] = [
         id: 'yolo-classify', name: 'YOLO 분류', category: 'Classification',
         docker_image: 'ultralytics/ultralytics:latest', entrypoint: 'yolo classify train',
         param_style: 'equals',
-        default_params: { epochs: 100, imgsz: 224, batch: 64, data: '/workspace/data' },
+        default_params: { epochs: 100, imgsz: 224, batch: 64, data: '/workspace/data', workers: 2 },
         params: YOLO_COMMON_PARAMS,
         models: [
             { value: 'yolo11n-cls.pt', label: 'YOLO11n-cls', description: '초경량 이미지 분류' },
@@ -180,7 +180,7 @@ const EXPERIMENT_PRESETS: ExperimentPreset[] = [
         id: 'yolo-pose', name: 'YOLO 포즈추정', category: 'Pose Estimation',
         docker_image: 'ultralytics/ultralytics:latest', entrypoint: 'yolo pose train',
         param_style: 'equals',
-        default_params: { epochs: 100, imgsz: 640, batch: 16, data: '/workspace/data/data.yaml' },
+        default_params: { epochs: 100, imgsz: 640, batch: 16, data: '/workspace/data/data.yaml', workers: 2 },
         params: YOLO_COMMON_PARAMS,
         models: [
             { value: 'yolo11n-pose.pt', label: 'YOLO11n-pose', description: '경량 키포인트 추정' },
@@ -192,7 +192,7 @@ const EXPERIMENT_PRESETS: ExperimentPreset[] = [
     /* ── LLM 파인튜닝 프리셋 ─────────────────────── */
     {
         id: 'llm-sft', name: 'LLM 파인튜닝 (SFT)', category: 'LLM',
-        docker_image: 'huggingface/transformers-pytorch-gpu:latest',
+        docker_image: 'pytorch/pytorch:2.3.1-cuda12.1-cudnn8-runtime',
         entrypoint: 'python -m trl.scripts.sft',
         param_style: 'argparse',
         default_params: { num_train_epochs: 3, per_device_train_batch_size: 4, learning_rate: 2e-4, lora_r: 16, lora_alpha: 32, max_seq_length: 2048, load_in_4bit: true, fp16: true },
@@ -228,11 +228,11 @@ const EXPERIMENT_PRESETS: ExperimentPreset[] = [
             { value: 'ibm-granite/granite-3.1-8b-instruct', label: 'Granite 3.1 8B', description: '기업용 인스트럭션 계열' },
             { value: 'NousResearch/Hermes-3-Llama-3.1-8B', label: 'Hermes 3 8B', description: '대화 품질 개선 튜닝 모델' },
         ],
-        description: 'HuggingFace 모델 LoRA/QLoRA 파인튜닝', icon: '🤖',
+        description: 'HuggingFace 모델 LoRA/QLoRA 파인튜닝 (CSV, JSON, JSONL, TXT 지원)', icon: '🤖',
     },
     {
         id: 'llm-custom', name: 'LLM 커스텀 학습', category: 'LLM',
-        docker_image: 'huggingface/transformers-pytorch-gpu:latest',
+        docker_image: 'pytorch/pytorch:2.3.1-cuda12.1-cudnn8-runtime',
         entrypoint: 'python train.py',
         param_style: 'argparse',
         default_params: { num_train_epochs: 3, per_device_train_batch_size: 4, learning_rate: 2e-4 },
@@ -240,7 +240,7 @@ const EXPERIMENT_PRESETS: ExperimentPreset[] = [
         models: [
             { value: '', label: '커스텀 모델 (직접 입력)', description: 'HuggingFace 모델 ID 또는 로컬 경로' },
         ],
-        description: '커스텀 스크립트로 LLM 학습', icon: '🧪',
+        description: '커스텀 스크립트로 LLM 학습 (CSV, JSON, JSONL, TXT 지원)', icon: '🧪',
     },
     /* ── 범용 프리셋 ─────────────────────────────── */
     {
@@ -1762,6 +1762,20 @@ export default function ProjectDetailPage() {
                                             : selectedFileKeys.length < files.length ? `선택된 ${selectedFileKeys.length}개 파일만 서버에 전송됩니다`
                                             : '모든 파일이 SFTP로 서버에 전송되어 컨테이너에 마운트됩니다'}
                                     </Typography>
+                                    {getRunPreset()?.category === 'LLM' && (
+                                        <Box sx={{ mt: 1.5, p: 1.5, borderRadius: 1.5, backgroundColor: alpha('#6C63FF', 0.06), border: `1px solid ${alpha('#6C63FF', 0.12)}` }}>
+                                            <Typography variant="caption" sx={{ fontWeight: 600, color: '#6C63FF', display: 'block', mb: 0.5 }}>
+                                                LLM 학습 데이터 포맷 안내
+                                            </Typography>
+                                            <Typography variant="caption" sx={{ color: 'text.secondary', lineHeight: 1.6 }}>
+                                                CSV, JSON, JSONL, TXT, Parquet 지원{'\n'}
+                                                컬럼: <Typography component="span" variant="caption" sx={{ fontFamily: 'monospace', fontWeight: 600, color: 'text.primary' }}>text</Typography> (단일 텍스트) 또는{' '}
+                                                <Typography component="span" variant="caption" sx={{ fontFamily: 'monospace', fontWeight: 600, color: 'text.primary' }}>instruction/input/output</Typography> 또는{' '}
+                                                <Typography component="span" variant="caption" sx={{ fontFamily: 'monospace', fontWeight: 600, color: 'text.primary' }}>prompt/completion</Typography>{'\n'}
+                                                자동 감지되므로 파일만 업로드하면 됩니다
+                                            </Typography>
+                                        </Box>
+                                    )}
                                 </>
                             ) : (
                                 <Box>

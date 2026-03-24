@@ -86,6 +86,11 @@ def create_run(
     # Build command
     entrypoint = experiment.entrypoint or ""
     style = getattr(experiment, 'param_style', 'argparse') or 'argparse'
+    
+    # Force workers=1 for YOLO training to prevent shared memory issues
+    if 'yolo' in experiment.entrypoint.lower() and 'workers' in merged_params:
+        merged_params['workers'] = 1
+    
     if style == 'equals':
         param_str = " ".join(f"{k}={v}" for k, v in merged_params.items())
     else:

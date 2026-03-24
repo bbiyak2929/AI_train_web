@@ -17,6 +17,7 @@ class Settings(BaseSettings):
 
     # ── MinIO ─────────────────────────────────────
     MINIO_ENDPOINT: str = "minio:9000"
+    MINIO_EXTERNAL_ENDPOINT: str = ""  # 원격 서버에서 MinIO에 접근할 수 있는 외부 주소 (예: http://192.168.0.26:9000)
     MINIO_ROOT_USER: str = "minioadmin"
     MINIO_ROOT_PASSWORD: str = "changeme_minio_password"
     MINIO_USE_SSL: bool = False
